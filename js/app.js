@@ -1,0 +1,1132 @@
+import { DEFAULT_CATEGORIES, FALLBACK_CATEGORY } from './categories.js';
+import { haversineKm, hasCoords, parseCoords, formatKm, geocode } from './geo.js';
+import { parseFile, parseLinks, assignCategory } from './importers.js';
+import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey, loadLocalBackup, clearLocalBackup } from './store.js';
+import {
+  LocalBackend, SharedBackend, sharingConfigured, tripKeyFromUrl,
+  rememberedTripKey, rememberTripKey, forgetTripKey, shareUrl,
+} from './backend.js';
+import { createMap } from './map.js';
+import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './config.js';
+import { icon, categoryIcon, categoryStyle } from './icons.js';
+
+const CITY_CENTER = { lat: 45.4642, lng: 9.19 };
+const SYNC_INTERVAL_MS = 20000;
+
+// Fest hinterlegte Unterkunft aus config.js (hat Vorrang vor allem, was in der App gesetzt wurde).
+const fixedAirbnb = FIXED_AIRBNB && Number.isFinite(FIXED_AIRBNB.lat) && Number.isFinite(FIXED_AIRBNB.lng)
+  ? { label: String(FIXED_AIRBNB.label || 'Unterkunft'), lat: FIXED_AIRBNB.lat, lng: FIXED_AIRBNB.lng, url: FIXED_AIRBNB.url || '', mapsUrl: FIXED_AIRBNB.mapsUrl || '' }
+  : null;
+
+const state = {
+  places: [],
+  airbnb: fixedAirbnb,
+  customCategories: [],
+  ui: loadUi(),
+};
+
+let backend = new LocalBackend(() => state);
+let activeId = null;
+let pickMode = false;
+let geocodeRunning = false;
+let pendingWrites = 0;
+// Erst speichern, wenn die Orte geladen sind – sonst würde eine leere Liste den Speicher überschreiben.
+let dataLoaded = false;
+let lastSync = null;
+
+const $ = (sel, root = document) => root.querySelector(sel);
+const $$ = (sel, root = document) => [...root.querySelectorAll(sel)];
+const escapeHtml = (s) =>
+  String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const norm = (s) => String(s || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '');
+const memberName = () => String(readPref('name') || '').trim();
+
+// --- Kategorien ------------------------------------------------------------------
+
+// Eigene Kategorien landen im HTML (auch aus Backups oder von Mitreisenden) – daher Werte absichern.
+function sanitizeCategory(c) {
+  return {
+    id: String(c.id || '').replace(/[^a-z0-9-]/gi, '') || `kategorie-${Math.random().toString(36).slice(2, 6)}`,
+    label: String(c.label || 'Kategorie').slice(0, 40),
+    emoji: String(c.emoji || '📍').replace(/[<>&"']/g, '').slice(0, 8) || '📍',
+    color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : '#8C8074',
+    keywords: Array.isArray(c.keywords) ? c.keywords.map(String) : [],
+  };
+}
+
+// Anzeige-Reihenfolge: Standard, eigene, zuletzt "Sonstiges".
+function displayCategories() {
+  const fallback = DEFAULT_CATEGORIES.find((c) => c.id === FALLBACK_CATEGORY);
+  return [...DEFAULT_CATEGORIES.filter((c) => c.id !== FALLBACK_CATEGORY), ...state.customCategories, fallback];
+}
+// Für die Erkennung haben eigene Kategorien Vorrang.
+const classifyCategories = () => [...state.customCategories, ...DEFAULT_CATEGORIES];
+function catOf(id) {
+  return displayCategories().find((c) => c.id === id) || DEFAULT_CATEGORIES.find((c) => c.id === FALLBACK_CATEGORY);
+}
+
+// Auswahllisten können kein SVG anzeigen: dort nur Name (eigene Kategorien mit Emoji).
+const optionLabel = (c) => `${c.icon ? '' : `${c.emoji} `}${escapeHtml(c.label)}`;
+
+// "12,1 km" → Zahl in Serifenschrift, Einheit klein und gedämpft.
+function distanceHtml(km) {
+  const [value, unit] = formatKm(km).split(' ');
+  return `${value}<small>${unit}</small>`;
+}
+
+// --- Speichern ----------------------------------------------------------------------
+
+function applyData(data) {
+  state.places = Array.isArray(data.places) ? data.places : [];
+  state.airbnb = fixedAirbnb || data.airbnb || null;
+  state.customCategories = (data.customCategories || []).map(sanitizeCategory);
+}
+
+// Führt eine Speicher-Operation aus. Schlägt sie in einer gemeinsamen Reise fehl,
+// wird der Serverstand neu geladen, damit die Anzeige nicht von der Datenbank abweicht.
+async function persist(op, failMsg = 'Änderung konnte nicht gespeichert werden') {
+  if (!dataLoaded) {
+    toast('Die Orte werden noch geladen – bitte kurz warten und noch einmal versuchen.');
+    return false;
+  }
+  pendingWrites++;
+  try {
+    await op(backend);
+    lastSync = new Date();
+    return true;
+  } catch (err) {
+    toast(`${failMsg}: ${err.message}`);
+    if (backend.kind === 'shared') await refresh();
+    return false;
+  } finally {
+    pendingWrites--;
+  }
+}
+
+const persistSettings = () =>
+  persist((b) => b.saveSettings({ airbnb: state.airbnb, customCategories: state.customCategories }));
+
+let lastSignature = '';
+
+async function refresh({ fit = false } = {}) {
+  if (pendingWrites > 0 && !fit) return;
+  try {
+    const data = await backend.load();
+    lastSync = new Date();
+    const signature = JSON.stringify(data);
+    if (signature === lastSignature && !fit) {
+      if (shareDialog.open) renderShareDialog();
+      return;
+    }
+    lastSignature = signature;
+    applyData(data);
+    dataLoaded = true;
+    render({ fit });
+  } catch (err) {
+    if (backend.kind === 'shared') setSyncStatus(`Keine Verbindung (${err.message})`);
+    else toast(`Orte konnten nicht geladen werden: ${err.message}`);
+  }
+}
+
+// --- Karte -------------------------------------------------------------------------
+
+const mapOptions = {
+  // true = Klick verarbeitet (die Google-Variante zeigt sonst Details zu angetippten Google-Orten)
+  onMapClick: (latlng) => {
+    if (!pickMode) return false;
+    setPickMode(false);
+    setAirbnb({ label: `Gewählter Punkt (${latlng.lat.toFixed(4)}, ${latlng.lng.toFixed(4)})`, lat: latlng.lat, lng: latlng.lng });
+    return true;
+  },
+  onMarkerClick: (id) => selectPlace(id, { fly: false, scrollList: true }),
+  getInsets: mapInsets,
+};
+
+// Kartenvariante: Standard OpenStreetMap (Leaflet). Google Maps nur als Test – per ?karte=google|osm in der
+// Adresse (wird gemerkt) oder über das Menü. Ohne API-Schlüssel in config.js immer OpenStreetMap.
+const MAP_VARIANTS = ['osm', 'google'];
+const mapParam = new URLSearchParams(location.search).get('karte');
+if (MAP_VARIANTS.includes(mapParam)) writePref('map', mapParam);
+const wantedMap = MAP_VARIANTS.includes(mapParam) ? mapParam : readPref('map') || 'osm';
+const mapVariant = wantedMap === 'google' && GOOGLE_MAPS_API_KEY ? 'google' : 'osm';
+
+const mapView = mapVariant === 'google' ? createGoogleMapView($('#map')) : createMap($('#map'), mapOptions);
+
+// Google lädt asynchron: bis dahin nimmt ein Platzhalter alle Aufrufe an, danach wird neu gezeichnet.
+// Scheitert Google (Schlüssel, Netz, Zeitüberschreitung), übernimmt automatisch OpenStreetMap.
+function createGoogleMapView(el) {
+  let impl = null;
+  const view = { map: { getZoom: () => impl?.map.getZoom() ?? 9 } };
+  for (const k of ['setPlaces', 'setAirbnb', 'setActive', 'focusPlace', 'fitTo', 'centerOn', 'invalidate']) {
+    view[k] = (...args) => impl?.[k](...args);
+  }
+  const ready = (m) => {
+    impl = m;
+    view.map = m.map;
+    render({ fit: true });
+  };
+  import('./map-google.js')
+    .then(({ createGoogleMap, categoryFromGoogleTypes }) => createGoogleMap(el, {
+      ...mapOptions,
+      apiKey: GOOGLE_MAPS_API_KEY,
+      mapId: GOOGLE_MAPS_MAP_ID,
+      onAddPlace: (g) => addGooglePlace(g, categoryFromGoogleTypes(g.types)),
+      onError: (msg) => toast(msg, { sticky: true }),
+    }))
+    .then(ready)
+    .catch((err) => {
+      console.error(err);
+      toast(`Google Maps nicht verfügbar (${err.message}) – OpenStreetMap wird angezeigt.`);
+      el.innerHTML = '';
+      ready(createMap(el, mapOptions));
+    });
+  return view;
+}
+
+// Aus dem Google-Detailfenster: Ort in die eigene Liste übernehmen. Rückgabe steuert den Knopftext.
+async function addGooglePlace(g, categoryId) {
+  const { added, dupes } = await addPlaces([{ name: g.name, address: g.address, lat: g.lat, lng: g.lng, url: g.url }], categoryId || 'auto');
+  if (added.length) {
+    toast(`„${added[0].name}“ hinzugefügt (${catOf(added[0].category).label})`);
+    return 'added';
+  }
+  if (dupes) {
+    toast('Dieser Ort ist schon in eurer Liste.');
+    return 'dupe';
+  }
+  return 'error';
+}
+
+// --- Handy: Liste als Blatt über der Karte ------------------------------------------------
+// Unter 900px liegt die Seitenleiste als Blatt unten über der randlosen Karte (wie auf dem Desktop
+// schwebend, nur von unten). Drei Höhen: „peek“ (nur Suche), „half“ (Standard), „full“ (ganze Liste).
+// Die Höhen selbst stehen in styles.css (--sheet-h); hier wird nur umgeschaltet.
+
+const isMobile = () => window.matchMedia('(max-width: 899px)').matches;
+const SHEET_STATES = ['peek', 'half', 'full'];
+const SHEET_PEEK_PX = 150; // muss zu --sheet-h bei [data-sheet="peek"] in styles.css passen
+
+function sheetState() {
+  return $('.layout').dataset.sheet || 'half';
+}
+
+function setSheet(next) {
+  if (!SHEET_STATES.includes(next)) return;
+  $('.layout').dataset.sheet = next;
+  $('#sheet-handle').setAttribute('aria-expanded', String(next === 'full'));
+}
+
+// Wie viele Pixel der Karte an jedem Rand verdeckt sind. Aus dem Zielzustand berechnet statt aus den
+// aktuellen Maßen, weil das Blatt beim Umschalten noch animiert, während die Karte schon losfliegt.
+function mapInsets() {
+  const mapEl = $('#map');
+  const m = mapEl.getBoundingClientRect();
+  if (!m.height) return {};
+  const row = $('.panel-row').getBoundingClientRect();
+  let top = row.height ? Math.max(0, row.bottom - m.top) : 0;
+  if (isMobile()) {
+    const state = sheetState();
+    const bottom = state === 'peek' ? SHEET_PEEK_PX : state === 'half' ? m.height * 0.5 : m.height;
+    if (m.height - bottom - top < 120) top = 0; // offene Box: nicht auf einen Streifen quetschen
+    return { top, bottom: Math.min(bottom, m.height - 40) };
+  }
+  const left = Math.max(0, $('.sidebar').getBoundingClientRect().right - m.left);
+  if (m.height - top < 160) top = 0;
+  return { top, left };
+}
+
+(() => {
+  const handle = $('#sheet-handle');
+  handle.setAttribute('aria-expanded', 'false');
+  // Tippen: halb ↔ ganz (aus „peek“ auf halb). Wischen auf dem Griff: hoch = größer, runter = kleiner.
+  handle.addEventListener('click', () => {
+    const cur = sheetState();
+    setSheet(cur === 'half' ? 'full' : 'half');
+  });
+  let startY = null;
+  handle.addEventListener('touchstart', (e) => { startY = e.touches[0].clientY; }, { passive: true });
+  handle.addEventListener('touchend', (e) => {
+    if (startY == null) return;
+    const dy = e.changedTouches[0].clientY - startY;
+    startY = null;
+    if (Math.abs(dy) < 30) return; // kurzer Tipp → normales click
+    e.preventDefault(); // kein zusätzliches click nach dem Wischen
+    const i = SHEET_STATES.indexOf(sheetState());
+    setSheet(SHEET_STATES[Math.max(0, Math.min(SHEET_STATES.length - 1, i + (dy < 0 ? 1 : -1)))]);
+  });
+  // Suchen braucht Platz für Tastatur und Treffer
+  $('#search').addEventListener('focus', () => { if (isMobile()) setSheet('full'); });
+})();
+
+// --- Ableitungen -------------------------------------------------------------------
+
+function placesWithDistance() {
+  const a = state.airbnb;
+  return state.places.map((p) => ({
+    ...p,
+    distance: a && hasCoords(p) ? haversineKm(a.lat, a.lng, p.lat, p.lng) : null,
+  }));
+}
+
+function filterBase(places) {
+  const q = norm(state.ui.search.trim());
+  if (!q) return places;
+  return places.filter((p) =>
+    norm(`${p.name} ${p.address} ${p.note} ${p.listName} ${p.addedBy || ''} ${catOf(p.category).label}`).includes(q));
+}
+
+function sortPlaces(list) {
+  const byName = (a, b) => a.name.localeCompare(b.name, 'de');
+  const order = displayCategories().map((c) => c.id);
+  const sorters = {
+    distance: (a, b) => (a.distance ?? Infinity) - (b.distance ?? Infinity) || byName(a, b),
+    name: byName,
+    category: (a, b) => order.indexOf(a.category) - order.indexOf(b.category) || (a.distance ?? Infinity) - (b.distance ?? Infinity) || byName(a, b),
+    recent: (a, b) => (b.addedAt || 0) - (a.addedAt || 0),
+  };
+  const key = state.ui.sort === 'distance' && !state.airbnb ? 'name' : state.ui.sort;
+  return list.sort(sorters[key] || byName);
+}
+
+// --- Rendering -----------------------------------------------------------------------
+
+let lastVisible = [];
+
+function render({ fit = false } = {}) {
+  const all = placesWithDistance();
+  const base = filterBase(all);
+  const selected = new Set(state.ui.categories);
+  const visible = sortPlaces(selected.size ? base.filter((p) => selected.has(p.category)) : base);
+  lastVisible = visible;
+
+  if (activeId && !visible.some((p) => p.id === activeId)) activeId = null;
+
+  renderAirbnb();
+  renderChips(base);
+  renderList(visible, all.length);
+  renderShareState();
+
+  mapView.setPlaces(visible, catOf, activeId);
+  mapView.setAirbnb(state.airbnb);
+  if (fit) mapView.fitTo(visible, state.airbnb);
+
+  saveUi(state.ui);
+}
+
+function renderAirbnb() {
+  const a = state.airbnb;
+  // Links kommen von der fest hinterlegten Unterkunft (config.js, falls genutzt) oder – im Normalfall –
+  // von den optional selbst eingetragenen Links (state.airbnb.url/.mapsUrl, siehe #airbnb-links-form).
+  const links = fixedAirbnb || a;
+  $('#airbnb-label').textContent = a ? a.label : 'Noch nicht festgelegt';
+  $('#airbnb-label').classList.toggle('is-set', !!a);
+  $('#btn-airbnb-clear').hidden = !a || !!fixedAirbnb;
+  // Feste Unterkunft: Suche und Kartenauswahl ausblenden, stattdessen Link zum Inserat.
+  $('#airbnb-form').hidden = !!fixedAirbnb;
+  $('#btn-pick').hidden = !!fixedAirbnb;
+  if (fixedAirbnb) $('#airbnb-results').hidden = true;
+  // Null-sicher: lädt der Browser noch ein älteres index.html aus dem Cache, darf der Start nicht abbrechen.
+  const link = $('#airbnb-link');
+  if (link) {
+    link.hidden = !links?.url;
+    if (links?.url) link.href = links.url;
+  }
+  const mapsLink = $('#airbnb-maps-link');
+  if (mapsLink) {
+    mapsLink.hidden = !links?.mapsUrl;
+    if (links?.mapsUrl) mapsLink.href = links.mapsUrl;
+  }
+  // "Links hinzufügen" nur bei einer selbst gesetzten (nicht fest hinterlegten) Unterkunft anbieten.
+  const linksBtn = $('#btn-airbnb-links');
+  if (linksBtn) linksBtn.hidden = !a || !!fixedAirbnb;
+  $('.airbnb .link-row')?.classList.toggle('is-stacked', !!fixedAirbnb);
+}
+
+function renderChips(base) {
+  const counts = new Map();
+  for (const p of base) counts.set(p.category, (counts.get(p.category) || 0) + 1);
+  const selected = new Set(state.ui.categories);
+  const used = new Set(state.places.map((p) => p.category));
+
+  const chips = displayCategories()
+    .filter((c) => used.has(c.id) || selected.has(c.id) || !state.places.length)
+    .map((c) => {
+      const n = counts.get(c.id) || 0;
+      return `<button type="button" class="chip${n ? '' : ' is-empty'}" data-cat="${c.id}" aria-pressed="${selected.has(c.id)}" style="${categoryStyle(c)}">
+        <span class="chip-icon">${categoryIcon(c, { size: 15 })}</span>${escapeHtml(c.label)}<span class="chip-count">${n}</span>
+      </button>`;
+    });
+
+  $('#category-chips').innerHTML =
+    `<button type="button" class="chip chip-all" data-cat="" aria-pressed="${!selected.size}">Alle<span class="chip-count">${base.length}</span></button>` +
+    chips.join('');
+}
+
+// Startansicht: nur die ersten PLACES_PREVIEW Orte, der Rest ist über „Alle … anzeigen“ aufklappbar.
+// Die Karte zeigt trotzdem alle Orte; zugeklappt wird nur die Liste.
+const PLACES_PREVIEW = 3;
+let placesExpanded = false;
+
+function renderPlaceMore(count) {
+  const btn = $('#place-more');
+  const list = $('#place-list');
+  const extra = count - PLACES_PREVIEW;
+  list.classList.toggle('is-collapsed', !placesExpanded && extra > 0);
+  btn.hidden = extra <= 0;
+  if (extra <= 0) return;
+  btn.setAttribute('aria-expanded', String(placesExpanded));
+  btn.innerHTML = placesExpanded
+    ? `Weniger anzeigen ${icon('chevron-up', { size: 15, stroke: 2.2 })}`
+    : `Alle ${count} Orte anzeigen ${icon('chevron-down', { size: 15, stroke: 2.2 })}`;
+}
+
+$('#place-more').addEventListener('click', () => {
+  placesExpanded = !placesExpanded;
+  renderPlaceMore($$('#place-list .place').length);
+  // Handy: aufgeklappte Liste braucht Platz → Blatt ganz hochziehen
+  if (placesExpanded && isMobile()) setSheet('full');
+  // Beim Zuklappen zurück an den Listenanfang, sonst steht man mitten im leeren Bereich
+  if (!placesExpanded) $('.list-section .list-head')?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+});
+
+function renderList(visible, total) {
+  const list = $('#place-list');
+  const empty = $('#empty-state');
+  renderPlaceMore(visible.length);
+  $('#result-count').innerHTML = total
+    ? `<strong>${visible.length} ${visible.length === 1 ? 'Ort' : 'Orte'}</strong> von ${total}`
+    : '';
+
+  if (!visible.length) {
+    list.innerHTML = '';
+    empty.hidden = false;
+    empty.innerHTML = total
+      ? `<div class="empty-arch" aria-hidden="true">${icon('search', { size: 24, stroke: 1.6 })}</div>
+         <h3>Nichts gefunden</h3>
+         <p>Kein Ort passt zu deinen Filtern.</p>
+         <button type="button" class="btn btn-ghost" data-empty="reset">Filter zurücksetzen</button>`
+      : `<div class="empty-arch" aria-hidden="true">${icon('glass', { size: 44, stroke: 2.4 })}</div>
+         <h3>Noch keine Orte</h3>
+         <p>Importiere deine gespeicherten Orte aus Google Maps oder ein Backup.</p>
+         <div class="empty-actions">
+           ${restoreHint()}
+           <button type="button" class="btn btn-primary" data-empty="import">Orte importieren</button>
+         </div>`;
+    return;
+  }
+  empty.hidden = true;
+
+  const cats = displayCategories();
+  list.innerHTML = visible.map((p, i) => {
+    const c = catOf(p.category);
+    const gmaps = p.url || (hasCoords(p) ? `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}`);
+    const dist = p.distance != null
+      ? `<span class="place-dist">${distanceHtml(p.distance)}</span>`
+      : !hasCoords(p) ? '<span class="place-dist is-missing" title="Kein Standort">ohne Standort</span>' : '';
+    const gf = !!p.glutenFree;
+    return `<li class="place${p.id === activeId ? ' is-active' : ''}${i >= PLACES_PREVIEW ? ' is-extra' : ''}" data-id="${p.id}" style="${categoryStyle(c)}">
+      <div class="place-row">
+      <button type="button" class="place-main" data-action="select" aria-expanded="${p.id === activeId}">
+        <span class="place-icon" aria-hidden="true">${categoryIcon(c, { size: 18, stroke: 1.7 })}</span>
+        <span class="place-body">
+          <span class="place-name">${escapeHtml(p.name)}</span>
+          <span class="place-meta">${escapeHtml(c.label)}${p.address ? ` · ${escapeHtml(p.address)}` : ''}</span>
+        </span>
+        ${dist}
+      </button>
+      <button type="button" class="gf-toggle" data-action="gluten-free" aria-pressed="${gf}" aria-label="Glutenfrei" title="${gf ? 'Glutenfrei – antippen zum Entfernen' : 'Als glutenfrei markieren'}">${icon('wheat-off', { size: 17, stroke: 1.9 })}<span class="gf-label">GF</span></button>
+      </div>
+      <div class="place-details">
+        ${p.note ? `<p class="place-note">${escapeHtml(p.note)}</p>` : ''}
+        ${p.addedBy ? `<p class="place-by">Hinzugefügt von ${escapeHtml(p.addedBy)}</p>` : ''}
+        <div class="place-actions">
+          <label class="cat-select-wrap">
+            <span class="visually-hidden">Kategorie</span>
+            <select class="cat-select" data-action="category">
+              ${cats.map((k) => `<option value="${k.id}"${k.id === p.category ? ' selected' : ''}>${optionLabel(k)}</option>`).join('')}
+            </select>
+          </label>
+          ${!hasCoords(p) ? '<button type="button" class="chip-btn" data-action="geocode">Standort suchen</button>' : ''}
+          <a class="chip-btn" href="${escapeHtml(gmaps)}" target="_blank" rel="noopener">Google Maps ${icon('external', { size: 12, stroke: 2.2 })}</a>
+          <button type="button" class="chip-btn chip-btn-icon danger" data-action="delete" aria-label="Entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
+        </div>
+      </div>
+    </li>`;
+  }).join('');
+}
+
+// --- Auswahl ------------------------------------------------------------------------
+
+function selectPlace(id, { fly = true, scrollList = false } = {}) {
+  const toggleOff = activeId === id && fly;
+  activeId = toggleOff ? null : id;
+  $$('#place-list .place').forEach((li) => {
+    const on = li.dataset.id === activeId;
+    li.classList.toggle('is-active', on);
+    $('.place-main', li).setAttribute('aria-expanded', String(on));
+  });
+  mapView.setActive(activeId);
+  if (isMobile() && activeId) {
+    // Ort aus der Liste gewählt: Karte muss sichtbar sein. Marker angetippt: Eintrag muss sichtbar sein.
+    if (fly && sheetState() === 'full') setSheet('half');
+    if (scrollList && sheetState() === 'peek') setSheet('half');
+  }
+  if (activeId && fly) mapView.focusPlace(activeId);
+  if (activeId && scrollList) {
+    const li = $(`#place-list .place[data-id="${CSS.escape(activeId)}"]`);
+    // Marker eines Orts angetippt, der in der zugeklappten Liste versteckt ist → Liste aufklappen
+    if (li?.classList.contains('is-extra') && !placesExpanded) {
+      placesExpanded = true;
+      renderPlaceMore($$('#place-list .place').length);
+    }
+    // auf dem Handy erst nach dem Aufziehen des Blatts scrollen (Animation 0,25 s)
+    setTimeout(() => li?.scrollIntoView({ behavior: 'smooth', block: 'nearest' }), isMobile() ? 280 : 0);
+  }
+}
+
+// --- Airbnb ---------------------------------------------------------------------------
+
+function setAirbnb(airbnb) {
+  if (fixedAirbnb) return;
+  state.airbnb = airbnb;
+  if (airbnb && state.ui.sort !== 'distance') state.ui.sort = 'distance';
+  $('#sort').value = state.ui.sort;
+  $('#airbnb-results').hidden = true;
+  render();
+  persistSettings();
+  if (airbnb) {
+    mapView.centerOn([airbnb.lat, airbnb.lng], Math.max(mapView.map.getZoom(), 11));
+    toast('Airbnb gesetzt – Entfernungen werden jetzt berechnet.');
+  }
+}
+
+function setPickMode(on) {
+  pickMode = on;
+  $('#pick-banner').hidden = !on;
+  $('#map').classList.toggle('is-picking', on);
+  if (on && isMobile()) {
+    // Karte freimachen: Liste nach unten, offene Boxen zu (sonst verdecken sie die Karte)
+    setSheet('peek');
+    $$('.panel-row details[open]').forEach((d) => { d.open = false; });
+  }
+}
+
+$('#airbnb-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const value = $('#airbnb-input').value.trim();
+  if (!value) return;
+  const coords = parseCoords(value);
+  if (coords) {
+    setAirbnb({ label: value.startsWith('http') ? `Pin (${coords.lat.toFixed(4)}, ${coords.lng.toFixed(4)})` : value, ...coords });
+    $('#airbnb-input').value = '';
+    return;
+  }
+  const results = $('#airbnb-results');
+  results.hidden = false;
+  results.innerHTML = '<li class="muted">Suche …</li>';
+  try {
+    const hits = await geocode(value, CITY_CENTER);
+    results.innerHTML = hits.length
+      ? hits.map((h, i) => `<li><button type="button" data-hit="${i}">${escapeHtml(h.label)}</button></li>`).join('')
+      : '<li class="muted">Nichts gefunden. Versuche es mit Ort und Straße oder einem Maps-Link.</li>';
+    results.onclick = (ev) => {
+      const btn = ev.target.closest('[data-hit]');
+      if (!btn) return;
+      const h = hits[Number(btn.dataset.hit)];
+      setAirbnb({ label: h.label.split(',').slice(0, 3).join(','), lat: h.lat, lng: h.lng });
+      $('#airbnb-input').value = '';
+    };
+  } catch (err) {
+    results.innerHTML = `<li class="muted">${escapeHtml(err.message)}</li>`;
+  }
+});
+
+$('#btn-pick').addEventListener('click', () => setPickMode(!pickMode));
+$('#btn-pick-cancel').addEventListener('click', () => setPickMode(false));
+$('#btn-airbnb-clear').addEventListener('click', () => {
+  state.airbnb = fixedAirbnb;
+  render();
+  persistSettings();
+});
+
+$('#btn-airbnb-links')?.addEventListener('click', () => {
+  const form = $('#airbnb-links-form');
+  const opening = form.hidden;
+  form.hidden = !opening;
+  if (opening) {
+    $('#airbnb-link-input').value = state.airbnb?.url || '';
+    $('#airbnb-mapslink-input').value = state.airbnb?.mapsUrl || '';
+    $('#airbnb-link-input').focus();
+  }
+});
+
+$('#airbnb-links-form')?.addEventListener('submit', (e) => {
+  e.preventDefault();
+  if (!state.airbnb) return;
+  const url = $('#airbnb-link-input').value.trim();
+  const mapsUrl = $('#airbnb-mapslink-input').value.trim();
+  state.airbnb = { ...state.airbnb, url, mapsUrl };
+  $('#airbnb-links-form').hidden = true;
+  render();
+  persistSettings();
+  toast('Links gespeichert');
+});
+
+// --- Filter ------------------------------------------------------------------------------
+
+$('#search').value = state.ui.search;
+$('#sort').value = state.ui.sort;
+
+$('#search').addEventListener('input', (e) => {
+  state.ui.search = e.target.value;
+  render();
+});
+$('#sort').addEventListener('change', (e) => {
+  state.ui.sort = e.target.value;
+  render();
+});
+$('#category-chips').addEventListener('click', (e) => {
+  const chip = e.target.closest('.chip');
+  if (!chip) return;
+  const id = chip.dataset.cat;
+  if (!id) state.ui.categories = [];
+  else {
+    const set = new Set(state.ui.categories);
+    set.has(id) ? set.delete(id) : set.add(id);
+    state.ui.categories = [...set];
+  }
+  render();
+});
+
+function resetFilters() {
+  state.ui.categories = [];
+  state.ui.search = '';
+  $('#search').value = '';
+  render({ fit: true });
+}
+
+// --- Liste ---------------------------------------------------------------------------------
+
+$('#place-list').addEventListener('click', async (e) => {
+  const li = e.target.closest('.place');
+  const action = e.target.closest('[data-action]')?.dataset.action;
+  if (!li || !action) return;
+  const id = li.dataset.id;
+  const place = state.places.find((p) => p.id === id);
+  if (!place) return;
+
+  if (action === 'select') selectPlace(id);
+  if (action === 'gluten-free') {
+    place.glutenFree = !place.glutenFree;
+    render();
+    const ok = await persist((b) => b.updatePlace(id, { glutenFree: place.glutenFree }), 'Glutenfrei konnte nicht gespeichert werden');
+    if (!ok) {
+      place.glutenFree = !place.glutenFree;
+      render();
+      return;
+    }
+    toast(place.glutenFree ? `„${place.name}“ als glutenfrei markiert` : `Glutenfrei-Markierung entfernt`);
+  }
+  if (action === 'delete') {
+    if (!confirm(`„${place.name}“ entfernen?`)) return;
+    state.places = state.places.filter((p) => p.id !== id);
+    render();
+    persist((b) => b.deletePlace(id), 'Ort konnte nicht entfernt werden');
+  }
+  if (action === 'geocode') {
+    await geocodeMissing([id]);
+    selectPlace(id);
+  }
+});
+
+$('#place-list').addEventListener('change', (e) => {
+  if (e.target.dataset.action !== 'category') return;
+  const id = e.target.closest('.place').dataset.id;
+  const place = state.places.find((p) => p.id === id);
+  if (!place) return;
+  place.category = e.target.value;
+  render();
+  persist((b) => b.updatePlace(id, { category: place.category }));
+  toast(`Kategorie geändert: ${catOf(place.category).label}`);
+});
+
+// Sicherung anbieten, wenn die lokale Liste leer ist, aber ein früherer Stand existiert.
+function restoreHint() {
+  const backup = backend.kind === 'local' && dataLoaded ? loadLocalBackup() : null;
+  return backup
+    ? `<button type="button" class="btn btn-ghost" data-empty="restore">${backup.places.length} frühere Orte wiederherstellen</button>`
+    : '';
+}
+
+async function restoreBackup() {
+  const backup = loadLocalBackup();
+  if (!backup) return;
+  // Eigene Kategorien zuerst, damit die Orte ihre Kategorie behalten.
+  const known = new Set(state.customCategories.map((c) => c.id));
+  const missing = (backup.customCategories || []).map(sanitizeCategory).filter((c) => !known.has(c.id));
+  if (missing.length) {
+    state.customCategories.push(...missing);
+    await persistSettings();
+  }
+  const { added } = await addPlaces(backup.places);
+  clearLocalBackup();
+  render({ fit: true });
+  toast(`${added.length} Orte wiederhergestellt`);
+}
+
+$('#empty-state').addEventListener('click', (e) => {
+  const what = e.target.closest('[data-empty]')?.dataset.empty;
+  if (what === 'restore') restoreBackup();
+  if (what === 'reset') resetFilters();
+  if (what === 'import') openImport();
+});
+
+// --- Import -----------------------------------------------------------------------------
+
+const importDialog = $('#import-dialog');
+
+function openImport() {
+  $('#import-category').innerHTML =
+    '<option value="auto">Automatisch erkennen</option>' +
+    displayCategories().map((c) => `<option value="${c.id}">${optionLabel(c)}</option>`).join('');
+  $('#import-log').innerHTML = '';
+  selectImportTab('links'); // Start immer auf „Links einfügen“ – der häufigste Weg, Orte hinzuzufügen
+  importDialog.showModal();
+}
+
+function log(msg, type = '') {
+  const el = document.createElement('p');
+  el.className = `log-line ${type}`;
+  el.textContent = msg;
+  $('#import-log').append(el);
+  el.scrollIntoView({ block: 'nearest' });
+}
+
+const coordKey = (p) => `${norm(p.name)}|${hasCoords(p) ? `${p.lat.toFixed(4)},${p.lng.toFixed(4)}` : '-'}`;
+
+// Fügt neue Orte dem Zustand hinzu (ohne Duplikate) und speichert sie.
+async function addPlaces(raws, override = 'auto') {
+  const urls = new Set(state.places.map((p) => p.url).filter(Boolean));
+  const keys = new Set(state.places.map(coordKey));
+  const cats = classifyCategories();
+  const by = memberName();
+  const added = [];
+  let dupes = 0;
+
+  for (const raw of raws) {
+    const place = {
+      id: newId(),
+      name: String(raw.name || 'Unbenannter Ort').trim().slice(0, 300),
+      address: String(raw.address || '').slice(0, 500),
+      lat: Number.isFinite(raw.lat) ? raw.lat : null,
+      lng: Number.isFinite(raw.lng) ? raw.lng : null,
+      url: String(raw.url || '').slice(0, 2000),
+      note: String(raw.note || '').slice(0, 2000),
+      listName: String(raw.listName || '').slice(0, 200),
+      addedBy: String(raw.addedBy || by).slice(0, 80),
+      addedAt: raw.addedAt || Date.now(),
+      ...(raw.glutenFree ? { glutenFree: true } : {}),
+    };
+    if ((place.url && urls.has(place.url)) || keys.has(coordKey(place))) {
+      dupes++;
+      continue;
+    }
+    place.category = assignCategory(raw, cats, override);
+    if (place.url) urls.add(place.url);
+    keys.add(coordKey(place));
+    state.places.push(place);
+    added.push(place);
+  }
+
+  if (added.length) {
+    render();
+    const ok = await persist((b) => b.addPlaces(added), 'Orte konnten nicht gespeichert werden');
+    if (!ok) return { added: [], dupes };
+  }
+  return { added, dupes };
+}
+
+async function importRaw(raws, sourceLabel) {
+  const override = $('#import-category-field').hidden ? 'auto' : $('#import-category').value || 'auto';
+  const { added, dupes } = await addPlaces(raws, override);
+  const missing = added.filter((p) => !hasCoords(p));
+  log(
+    `${sourceLabel}: ${added.length} neue Orte${dupes ? `, ${dupes} bereits vorhanden` : ''}${missing.length ? `, ${missing.length} ohne Standort` : ''}.`,
+    added.length ? 'ok' : '',
+  );
+  return { added, missing };
+}
+
+async function handleFiles(files) {
+  const allAdded = [];
+  const allMissing = [];
+  for (const file of files) {
+    try {
+      const text = await file.text();
+      const result = parseFile(file.name, text);
+      if (result.kind === 'backup') {
+        const b = result.backup;
+        const known = new Set(state.customCategories.map((c) => c.id));
+        state.customCategories.push(...(b.customCategories || []).map(sanitizeCategory).filter((c) => !known.has(c.id)));
+        if (!state.airbnb && b.airbnb) state.airbnb = b.airbnb;
+        await persistSettings();
+      }
+      const { added, missing } = await importRaw(result.places, file.name);
+      allAdded.push(...added);
+      allMissing.push(...missing);
+    } catch (err) {
+      log(`${file.name}: konnte nicht gelesen werden (${err.message})`, 'error');
+    }
+  }
+  finishImport(allAdded, allMissing);
+}
+
+function finishImport(added, missing) {
+  render({ fit: added.length > 0 });
+  if (added.length) toast(`${added.length} Orte importiert`);
+  if (missing.length) {
+    if ($('#import-geocode').checked) geocodeMissing(missing.map((p) => p.id));
+    else log('Orte ohne Standort erscheinen in der Liste, aber nicht auf der Karte. Über „Standort suchen“ kannst du sie ergänzen.');
+  }
+}
+
+async function geocodeMissing(ids) {
+  if (geocodeRunning) return toast('Standortsuche läuft bereits …');
+  geocodeRunning = true;
+  let found = 0;
+  try {
+    for (let i = 0; i < ids.length; i++) {
+      const place = state.places.find((p) => p.id === ids[i]);
+      if (!place || hasCoords(place)) continue;
+      toast(`Suche Standorte … ${i + 1}/${ids.length}`, { sticky: true });
+      const near = state.airbnb || CITY_CENTER;
+      let hits = await geocode([place.name, place.address].filter(Boolean).join(', '), near);
+      if (!hits.length && place.address) hits = await geocode(place.address, near);
+      if (hits.length) {
+        place.lat = hits[0].lat;
+        place.lng = hits[0].lng;
+        if (!place.address) place.address = hits[0].label.split(',').slice(0, 3).join(',');
+        found++;
+        render();
+        await persist((b) => b.updatePlace(place.id, { lat: place.lat, lng: place.lng, address: place.address }));
+      } else {
+        log(`Kein Standort gefunden für „${place.name}“.`, 'error');
+      }
+    }
+    toast(`${found} von ${ids.length} Standorten gefunden`);
+    if (ids.length > 1) log(`Standortsuche fertig: ${found} von ${ids.length} gefunden.`, found ? 'ok' : '');
+  } catch (err) {
+    toast(`Standortsuche abgebrochen: ${err.message}`);
+    log(`Standortsuche abgebrochen: ${err.message}`, 'error');
+  } finally {
+    geocodeRunning = false;
+    render();
+  }
+}
+
+$('#btn-import').addEventListener('click', openImport);
+$('#file-input').addEventListener('change', (e) => {
+  handleFiles([...e.target.files]);
+  e.target.value = '';
+});
+
+const dropzone = $('#dropzone');
+['dragenter', 'dragover'].forEach((t) =>
+  dropzone.addEventListener(t, (e) => {
+    e.preventDefault();
+    dropzone.classList.add('is-over');
+  }));
+['dragleave', 'drop'].forEach((t) =>
+  dropzone.addEventListener(t, (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('is-over');
+  }));
+dropzone.addEventListener('drop', (e) => handleFiles([...e.dataTransfer.files]));
+
+$('#btn-parse-links').addEventListener('click', async () => {
+  const text = $('#links-input').value.trim();
+  if (!text) return;
+  const { added, missing } = await importRaw(parseLinks(text, 'Eingefügt'), 'Eingefügte Links');
+  $('#links-input').value = '';
+  finishImport(added, missing);
+});
+
+function selectImportTab(name) {
+  $$('.tab', importDialog).forEach((t) => {
+    t.classList.toggle('is-active', t.dataset.tab === name);
+    t.setAttribute('aria-selected', String(t.dataset.tab === name));
+  });
+  $$('.tab-panel', importDialog).forEach((p) => (p.hidden = p.dataset.panel !== name));
+  // Kategorie-Auswahl nur bei Dateien: Links werden automatisch zugeordnet,
+  // die Kategorie lässt sich danach in der Liste pro Ort ändern.
+  $('#import-category-field').hidden = name !== 'file';
+}
+
+$$('.tab', importDialog).forEach((tab) => tab.addEventListener('click', () => selectImportTab(tab.dataset.tab)));
+
+// Dialoge: Schließen-Buttons + Klick auf den Hintergrund
+$$('dialog').forEach((dlg) => {
+  dlg.addEventListener('click', (e) => {
+    if (e.target === dlg || e.target.closest('[data-close]')) dlg.close();
+  });
+});
+
+// --- Teilen / gemeinsame Reise ------------------------------------------------------------
+
+const shareDialog = $('#share-dialog');
+
+function setSyncStatus(text) {
+  const el = $('#sync-status');
+  if (el) el.textContent = text;
+}
+
+function renderShareState() {
+  const shared = backend.kind === 'shared';
+  $('#btn-share').classList.toggle('is-shared', shared);
+  $('#btn-share .btn-label').textContent = shared ? 'Gemeinsam' : 'Teilen';
+  if (shareDialog.open) renderShareDialog();
+}
+
+function renderShareDialog() {
+  const body = $('#share-body');
+  if (backend.kind === 'shared') {
+    const time = lastSync ? lastSync.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' }) : '–';
+    body.innerHTML = `
+      <p class="share-text">Alle mit diesem Link sehen dieselben Orte und können welche hinzufügen, ändern und löschen. Teile ihn nur mit Leuten, die mitplanen sollen.</p>
+      <div class="share-link">
+        <label class="visually-hidden" for="share-link">Link zur Reise</label>
+        <input id="share-link" type="text" readonly value="${escapeHtml(shareUrl(backend.key))}">
+        <button id="btn-copy-link" class="btn btn-primary" type="button">Link kopieren</button>
+      </div>
+      <p class="hint" id="sync-status">Zuletzt abgeglichen um ${time} · aktualisiert sich alle 20 Sekunden</p>
+      <button id="btn-leave-trip" class="btn-link muted" type="button">Reise auf diesem Gerät verlassen</button>`;
+  } else if (sharingConfigured()) {
+    const n = state.places.length;
+    body.innerHTML = `
+      <p class="share-text">${n ? `Deine ${n} Orte liegen` : 'Deine Orte liegen'} gerade nur in diesem Browser. Starte eine gemeinsame Reise: Die Orte werden hochgeladen, und alle mit dem Link sehen dieselbe Liste – auf jedem Gerät, auch unterwegs.</p>
+      <button id="btn-start-trip" class="btn btn-primary" type="button">Gemeinsame Reise starten</button>`;
+  } else {
+    body.innerHTML = `
+      <p class="share-text">Damit andere mitplanen können, braucht die App eine kleine Datenbank (Supabase, kostenlos). Die Einrichtung dauert etwa 15 Minuten – Schritt für Schritt in <strong>ANLEITUNG.md</strong> im Projektordner.</p>
+      <p class="hint">Bis dahin bleiben deine Orte in diesem Browser gespeichert.</p>`;
+  }
+}
+
+function openShare() {
+  $('#member-name').value = memberName();
+  renderShareDialog();
+  shareDialog.showModal();
+}
+
+async function startTrip() {
+  const btn = $('#btn-start-trip');
+  btn.disabled = true;
+  btn.textContent = 'Wird eingerichtet …';
+  try {
+    const key = newTripKey();
+    const shared = await SharedBackend.connect(key);
+    const by = memberName();
+    const places = state.places.map((p) => ({ ...p, addedBy: p.addedBy || by }));
+    await shared.saveSettings({ airbnb: state.airbnb, customCategories: state.customCategories });
+    if (places.length) await shared.addPlaces(places);
+    switchTo(shared);
+    toast('Gemeinsame Reise gestartet – jetzt den Link teilen');
+    await refresh({ fit: true });
+  } catch (err) {
+    toast(`Reise konnte nicht gestartet werden: ${err.message}`);
+    btn.disabled = false;
+    btn.textContent = 'Gemeinsame Reise starten';
+  }
+}
+
+function switchTo(next) {
+  backend = next;
+  if (next.kind === 'shared') {
+    rememberTripKey(next.key);
+    history.replaceState(null, '', shareUrl(next.key));
+  } else {
+    forgetTripKey();
+    history.replaceState(null, '', location.pathname);
+  }
+  renderShareState();
+}
+
+async function leaveTrip() {
+  if (!confirm('Reise auf diesem Gerät verlassen? Die gemeinsamen Orte bleiben erhalten – du kommst über den Link jederzeit zurück.')) return;
+  switchTo(new LocalBackend(() => state));
+  await refresh({ fit: true });
+  toast('Du siehst wieder deine lokalen Orte');
+}
+
+async function copyLink() {
+  const input = $('#share-link');
+  try {
+    await navigator.clipboard.writeText(input.value);
+    toast('Link kopiert');
+  } catch {
+    input.select();
+    toast('Link markiert – jetzt kopieren');
+  }
+}
+
+$('#btn-share').addEventListener('click', openShare);
+$('#share-body').addEventListener('click', (e) => {
+  const id = e.target.closest('button')?.id;
+  if (id === 'btn-start-trip') startTrip();
+  if (id === 'btn-copy-link') copyLink();
+  if (id === 'btn-leave-trip') leaveTrip();
+});
+$('#member-name').addEventListener('input', (e) => writePref('name', e.target.value.trim().slice(0, 40)));
+
+// --- Kategorien verwalten -------------------------------------------------------------------
+
+const categoryDialog = $('#category-dialog');
+
+function renderCategoryManager() {
+  const counts = new Map();
+  for (const p of state.places) counts.set(p.category, (counts.get(p.category) || 0) + 1);
+  const custom = new Set(state.customCategories.map((c) => c.id));
+  $('#category-manage-list').innerHTML = displayCategories().map((c) => `
+    <li style="${categoryStyle(c)}">
+      <span class="place-icon" aria-hidden="true">${categoryIcon(c, { size: 16, stroke: 1.7 })}</span>
+      <span class="cm-label">${escapeHtml(c.label)}</span>
+      <span class="cm-count">${counts.get(c.id) || 0}</span>
+      ${custom.has(c.id) ? `<button type="button" class="btn-link muted" data-delete-cat="${c.id}">Löschen</button>` : '<span class="cm-fixed">Standard</span>'}
+    </li>`).join('');
+}
+
+$('#category-manage-list').addEventListener('click', async (e) => {
+  const id = e.target.closest('[data-delete-cat]')?.dataset.deleteCat;
+  if (!id) return;
+  const cat = catOf(id);
+  if (!confirm(`Kategorie „${cat.label}“ löschen? Orte darin werden zu „Sonstiges“.`)) return;
+  const affected = state.places.filter((p) => p.category === id);
+  state.customCategories = state.customCategories.filter((c) => c.id !== id);
+  affected.forEach((p) => { p.category = FALLBACK_CATEGORY; });
+  state.ui.categories = state.ui.categories.filter((c) => c !== id);
+  renderCategoryManager();
+  render();
+  await persistSettings();
+  for (const p of affected) await persist((b) => b.updatePlace(p.id, { category: FALLBACK_CATEGORY }));
+});
+
+$('#category-form').addEventListener('submit', (e) => {
+  e.preventDefault();
+  const f = new FormData(e.target);
+  const label = String(f.get('label')).trim();
+  if (!label) return;
+  const slug = norm(label).replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '') || 'kategorie';
+  state.customCategories.push(sanitizeCategory({
+    id: `${slug}-${Math.random().toString(36).slice(2, 6)}`,
+    label,
+    emoji: String(f.get('emoji')).trim(),
+    color: String(f.get('color')),
+    keywords: String(f.get('keywords') || '').split(',').map((k) => k.trim().toLowerCase()).filter(Boolean),
+  }));
+  e.target.reset();
+  renderCategoryManager();
+  render();
+  persistSettings();
+  toast(`Kategorie „${label}“ angelegt`);
+});
+
+// --- Menü -------------------------------------------------------------------------------------
+
+$('.menu-panel').addEventListener('click', async (e) => {
+  const what = e.target.closest('[data-menu]')?.dataset.menu;
+  if (!what) return;
+  $('.menu').open = false;
+  if (what === 'categories') {
+    renderCategoryManager();
+    categoryDialog.showModal();
+  }
+  if (what === 'backup') downloadBackup(state);
+  if (what === 'fit') mapView.fitTo(lastVisible, state.airbnb);
+  if (what === 'map-variant') {
+    const next = mapVariant === 'google' ? 'osm' : 'google';
+    if (next === 'google' && !GOOGLE_MAPS_API_KEY) {
+      toast('Für Google Maps fehlt noch der API-Schlüssel in js/config.js (siehe ANLEITUNG.md).', { sticky: true });
+      return;
+    }
+    writePref('map', next);
+    // ?karte=… aus der Adresse entfernen, sonst würde es die neue Wahl beim Neuladen überschreiben
+    const url = new URL(location.href);
+    url.searchParams.delete('karte');
+    location.replace(url.href);
+  }
+  if (what === 'reset') {
+    const where = backend.kind === 'shared' ? ' – für alle in dieser gemeinsamen Reise' : '';
+    if (!confirm(`Wirklich alle Orte, das Airbnb und eigene Kategorien löschen${where}?`)) return;
+    state.places = [];
+    state.airbnb = fixedAirbnb;
+    state.customCategories = [];
+    state.ui.categories = [];
+    $('#search').value = '';
+    state.ui.search = '';
+    render({ fit: true });
+    await persist((b) => b.deleteAllPlaces());
+    await persistSettings();
+  }
+});
+document.addEventListener('click', (e) => {
+  const menu = $('.menu');
+  if (menu.open && !menu.contains(e.target)) menu.open = false;
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape' && pickMode) setPickMode(false);
+});
+
+// --- Toast ------------------------------------------------------------------------------------
+
+let toastTimer;
+function toast(msg, { sticky = false } = {}) {
+  const el = $('#toast');
+  el.textContent = msg;
+  el.hidden = false;
+  requestAnimationFrame(() => el.classList.add('is-visible'));
+  clearTimeout(toastTimer);
+  if (!sticky) toastTimer = setTimeout(() => el.classList.remove('is-visible'), 3200);
+}
+
+// --- Start ------------------------------------------------------------------------------------
+
+async function boot() {
+  try {
+    render();
+  } catch (err) {
+    console.error(err);
+  }
+  const key = tripKeyFromUrl() || rememberedTripKey();
+  if (key) {
+    if (!sharingConfigured()) {
+      toast('Dieser Link gehört zu einer gemeinsamen Reise, aber die Datenbank ist hier nicht eingerichtet.');
+    } else {
+      try {
+        switchTo(await SharedBackend.connect(key));
+      } catch (err) {
+        toast(`Gemeinsame Reise nicht erreichbar: ${err.message}`);
+      }
+    }
+  }
+  await refresh({ fit: true });
+
+  // Gemeinsame Reise: regelmäßig und beim Zurückkehren in die App abgleichen.
+  setInterval(() => {
+    if (backend.kind === 'shared' && document.visibilityState === 'visible') refresh();
+  }, SYNC_INTERVAL_MS);
+  document.addEventListener('visibilitychange', () => {
+    if (backend.kind === 'shared' && document.visibilityState === 'visible') refresh();
+  });
+  window.addEventListener('hashchange', () => {
+    const next = tripKeyFromUrl();
+    if (next && next !== backend.key) location.reload();
+  });
+}
+
+// Welche Version läuft gerade? (Zahl aus index.html, von deploy.sh erhöht) – hilft zu erkennen,
+// ob z. B. die App auf dem Home-Bildschirm noch einen alten Stand zeigt.
+$('#map-variant-label').textContent = mapVariant === 'google' ? 'Zurück zu OpenStreetMap' : 'Google Maps testen';
+$('#app-version').textContent = `Version ${document.querySelector('link[href*="styles.css"]')?.href.match(/v=([\d.-]+)/)?.[1] || '–'}`;
+
+boot();
+window.addEventListener('resize', () => mapView.invalidate());

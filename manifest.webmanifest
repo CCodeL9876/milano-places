@@ -1,0 +1,19 @@
+{
+  "name": "Milano, Espressi, Negroni e Mama Mia!",
+  "short_name": "Milano",
+  "display": "standalone",
+  "background_color": "#FFF6EA",
+  "theme_color": "#FFD23F",
+  "icons": [
+    {
+      "src": "assets/icon-180.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    },
+    {
+      "src": "assets/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
