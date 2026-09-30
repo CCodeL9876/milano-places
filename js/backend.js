@@ -61,8 +61,9 @@ const toRow = (p, key) => ({
   category: p.category,
   added_by: p.addedBy || '',
   created_at: new Date(p.addedAt || Date.now()).toISOString(),
-  // nur mitschicken, wenn gesetzt – so klappt der Import auch, solange die Spalte noch fehlt
-  ...(p.glutenFree ? { gluten_free: true } : {}),
+  // Immer mitschicken: Bei einem Sammel-Insert füllt Supabase fehlende Felder einzelner Zeilen mit null
+  // statt mit dem Standardwert – das verletzt „not null“, sobald nur manche Orte glutenfrei sind.
+  gluten_free: !!p.glutenFree,
 });
 
 const fromRow = (r) => ({
