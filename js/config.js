@@ -5,7 +5,7 @@
 // Solange die Felder leer sind, speichert die App nur lokal im Browser.
 
 export const SUPABASE_URL = 'https://vbipkljatgandplwould.supabase.co';
-export const SUPABASE_ANON_KEY = 'ssb_publishable_dg4tPjjsYOGRHxuf0Is43Q_LZRRzfs4';
+export const SUPABASE_ANON_KEY = 'sb_publishable_dg4tPjjsYOGRHxuf0Is43Q_LZRRzfs4';
 
 // Fest hinterlegte Unterkunft: NUR für ein privates Repository sinnvoll. Diese Datei wird mit dem
 // Quellcode auf GitHub veröffentlicht – ein hier eingetragener Wert ist für jeden einsehbar, der das
