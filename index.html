@@ -7,8 +7,8 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte in Mailand – gefiltert nach Art und Entfernung zur Unterkunft.">
   <meta name="theme-color" content="#FFD23F">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-01.14" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-01.14">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-01.15" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-01.15">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -17,8 +17,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-01.14">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-01.14">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-01.15">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-01.15">
 </head>
 <body>
   <header class="topbar">
@@ -258,10 +258,12 @@
       <ol class="locate-steps">
         <li><strong>Einstellungen → Datenschutz &amp; Sicherheit → Ortungsdienste</strong>: ganz oben eingeschaltet.</li>
         <li>In derselben Liste unten <strong>„Safari-Websites“</strong> antippen → <strong>„Beim Verwenden der App“</strong> wählen und <strong>„Genauer Standort“</strong> einschalten. Apps auf dem Home-Bildschirm nutzen genau diese Einstellung.</li>
+        <li><strong>Erlaubnis für diese Website</strong> (wird oft übersehen): Reise-Link in <strong>Safari</strong> öffnen → links in der Adressleiste auf <strong>„aA“</strong> bzw. das Seiten-Symbol tippen → <strong>Website-Einstellungen → Standort → „Erlauben“</strong>. Dann in Safari einmal auf das Fadenkreuz tippen und prüfen, ob dein Standort erscheint.</li>
         <li><strong>Einstellungen → Apps → Safari → Standort</strong> (bis iOS 17: Einstellungen → Safari → Standort) auf <strong>„Fragen“</strong> oder <strong>„Erlauben“</strong> stellen.</li>
         <li>Hast du die Abfrage in der Home-Bildschirm-App einmal mit „Nicht erlauben“ beantwortet, merkt sich iOS das. Dann das Symbol vom Home-Bildschirm löschen, den Reise-Link in Safari öffnen und über <strong>Teilen → Zum Home-Bildschirm</strong> neu hinzufügen. Beim nächsten Tipp auf das Fadenkreuz <strong>„Erlauben“</strong> wählen.</li>
       </ol>
       <p class="hint locate-note">Dein Standort bleibt auf deinem Gerät und wird nicht gespeichert oder geteilt.</p>
+      <p class="locate-tech" id="locate-tech"></p>
       <footer class="dialog-foot">
         <button class="btn btn-ghost" type="button" data-close>Schließen</button>
         <button class="btn btn-primary" type="button" id="locate-retry">Nochmals versuchen</button>
@@ -393,24 +395,24 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-01.14"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-01.15"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-01.14",
-      "./js/backend.js": "./js/backend.js?v=2026-10-01.14",
-      "./js/categories.js": "./js/categories.js?v=2026-10-01.14",
-      "./js/config.js": "./js/config.js?v=2026-10-01.14",
-      "./js/geo.js": "./js/geo.js?v=2026-10-01.14",
-      "./js/icons.js": "./js/icons.js?v=2026-10-01.14",
-      "./js/importers.js": "./js/importers.js?v=2026-10-01.14",
-      "./js/map.js": "./js/map.js?v=2026-10-01.14",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-01.14",
-      "./js/store.js": "./js/store.js?v=2026-10-01.14"
+      "./js/app.js": "./js/app.js?v=2026-10-01.15",
+      "./js/backend.js": "./js/backend.js?v=2026-10-01.15",
+      "./js/categories.js": "./js/categories.js?v=2026-10-01.15",
+      "./js/config.js": "./js/config.js?v=2026-10-01.15",
+      "./js/geo.js": "./js/geo.js?v=2026-10-01.15",
+      "./js/icons.js": "./js/icons.js?v=2026-10-01.15",
+      "./js/importers.js": "./js/importers.js?v=2026-10-01.15",
+      "./js/map.js": "./js/map.js?v=2026-10-01.15",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-01.15",
+      "./js/store.js": "./js/store.js?v=2026-10-01.15"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-01.14"></script>
+  <script type="module" src="js/app.js?v=2026-10-01.15"></script>
 </body>
 </html>

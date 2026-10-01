@@ -147,7 +147,7 @@ const mapOptions = {
     return true;
   },
   onMarkerClick: (id) => selectPlace(id, { fly: false, scrollList: true }),
-  onLocateMessage: (kind) => locateProblem(kind),
+  onLocateMessage: (kind, detail) => locateProblem(kind, detail),
   getInsets: mapInsets,
 };
 
@@ -1486,9 +1486,16 @@ document.addEventListener('keydown', (e) => {
 
 let toastTimer;
 // Standort klappt nicht: bei „verweigert“ Schritt-für-Schritt-Hilfe, sonst kurze Meldung
-function locateProblem(kind) {
+function locateProblem(kind, detail = '') {
   if (kind === 'denied') {
     const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+    // Technische Angabe für die Fehlersuche: Fehlermeldung des Geräts, Erlaubnis-Status, Art der Anzeige
+    const tech = $('#locate-tech');
+    const show = (state) => {
+      tech.textContent = `Technische Angabe: ${detail || 'keine Meldung'} · Erlaubnis: ${state} · ${standalone ? 'Home-Bildschirm-App' : 'Browser'} · ${location.protocol}`;
+    };
+    show('unbekannt');
+    navigator.permissions?.query({ name: 'geolocation' }).then((p) => show(p.state)).catch(() => {});
     $('#locate-lead').textContent = standalone
       ? 'Dein iPhone hat den Standort für die App auf dem Home-Bildschirm blockiert. So gibst du ihn frei:'
       : 'Dein Browser hat den Standort für diese Seite blockiert. Auf dem iPhone gibst du ihn so frei:';

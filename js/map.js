@@ -167,7 +167,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     // Bei laufender Verfolgung kurze Aussetzer (z. B. im Tunnel) ignorieren – nur beim Start melden
     if (!firstFix && meLatLng && e.code !== 1) return;
     stopLocate();
-    onLocateMessage?.(e.code === 1 ? 'denied' : 'unavailable');
+    onLocateMessage?.(e.code === 1 ? 'denied' : 'unavailable', e.message);
   });
 
   const LocateControl = L.Control.extend({
