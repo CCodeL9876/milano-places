@@ -17,8 +17,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-01.6">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-01.6">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-01.7">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-01.7">
 </head>
 <body>
   <header class="topbar">
@@ -45,6 +45,7 @@
       <details class="menu">
         <summary class="btn btn-ghost btn-icon" aria-label="Weitere Aktionen"><svg class="icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="5" cy="12" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="19" cy="12" r="1.2" fill="currentColor"/></svg></summary>
         <div class="menu-panel">
+          <button type="button" data-menu="intro">So funktioniert's</button>
           <button type="button" data-menu="categories">Kategorien verwalten</button>
           <button type="button" data-menu="backup">Backup herunterladen</button>
           <button type="button" data-menu="fit">Alle Orte zeigen</button>
@@ -206,6 +207,42 @@
   </dialog>
 
   <!-- Teilen-Dialog -->
+  <!-- Willkommen: erscheint beim Öffnen der Seite, bis „Nicht mehr anzeigen“ angehakt ist (Menü ••• öffnet es wieder) -->
+  <dialog id="intro-dialog" class="dialog" aria-labelledby="intro-title">
+    <div class="dialog-inner">
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow">Benvenuti!</span>
+          <h2 id="intro-title">Das kannst du hier tun</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="Schließen"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </header>
+      <ul class="intro-list">
+          <li class="intro-item">
+            <span class="intro-badge" style="--b:var(--pink)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
+            <span class="intro-text"><strong class="intro-name">Orte hinzufügen</strong><span>Oben auf <strong>+</strong> bzw. <strong>„Importieren“</strong> tippen und einen Google-Maps-Link einfügen. Der Ort erscheint für alle auf der Karte und in der Liste.</span></span>
+          </li>
+          <li class="intro-item">
+            <span class="intro-badge" style="--b:var(--mint)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg></span>
+            <span class="intro-text"><strong class="intro-name">Rechnungen erfassen</strong><span>In der Box <strong>„Kasse“</strong> eintragen, was du bezahlt hast und für wen. Der Betrag wird gleichmässig auf alle Beteiligten verteilt.</span></span>
+          </li>
+          <li class="intro-item">
+            <span class="intro-badge" style="--b:var(--yellow)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12c.552 0 1.005-.449.95-.998a10 10 0 0 0-8.953-8.951c-.55-.055-.998.398-.998.95v8a1 1 0 0 0 1 1z"/><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/></svg></span>
+            <span class="intro-text"><strong class="intro-name">Kosten im Überblick</strong><span>Die <strong>Abrechnung</strong> in der Kasse zeigt, wer wie viel bezahlt hat und wer wem wie viel überweisen muss.</span></span>
+          </li>
+          <li class="intro-item">
+            <span class="intro-badge" style="--b:var(--sky)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/></svg></span>
+            <span class="intro-text"><strong class="intro-name">Restaurants reservieren</strong><span>Restaurant in der Liste antippen, <strong>„Als reserviert markieren“</strong> und Datum und Uhrzeit eintragen. Der Filter „Reserviert“ zeigt alle Termine.</span></span>
+          </li>
+      </ul>
+      <p class="hint intro-note">Mit dem Reise-Link plant ihr gemeinsam: Was du einträgst, sehen alle anderen sofort.</p>
+      <footer class="dialog-foot">
+        <label class="check intro-hide"><input id="intro-hide" type="checkbox"><span>Nicht mehr anzeigen</span></label>
+        <button class="btn btn-primary" type="button" data-close>Los geht's</button>
+      </footer>
+    </div>
+  </dialog>
+
   <dialog id="cash-dialog" class="dialog" aria-labelledby="cash-title">
     <div class="dialog-inner">
       <header class="dialog-head">
@@ -330,24 +367,24 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-01.6"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-01.7"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-01.6",
-      "./js/backend.js": "./js/backend.js?v=2026-10-01.6",
-      "./js/categories.js": "./js/categories.js?v=2026-10-01.6",
-      "./js/config.js": "./js/config.js?v=2026-10-01.6",
-      "./js/geo.js": "./js/geo.js?v=2026-10-01.6",
-      "./js/icons.js": "./js/icons.js?v=2026-10-01.6",
-      "./js/importers.js": "./js/importers.js?v=2026-10-01.6",
-      "./js/map.js": "./js/map.js?v=2026-10-01.6",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-01.6",
-      "./js/store.js": "./js/store.js?v=2026-10-01.6"
+      "./js/app.js": "./js/app.js?v=2026-10-01.7",
+      "./js/backend.js": "./js/backend.js?v=2026-10-01.7",
+      "./js/categories.js": "./js/categories.js?v=2026-10-01.7",
+      "./js/config.js": "./js/config.js?v=2026-10-01.7",
+      "./js/geo.js": "./js/geo.js?v=2026-10-01.7",
+      "./js/icons.js": "./js/icons.js?v=2026-10-01.7",
+      "./js/importers.js": "./js/importers.js?v=2026-10-01.7",
+      "./js/map.js": "./js/map.js?v=2026-10-01.7",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-01.7",
+      "./js/store.js": "./js/store.js?v=2026-10-01.7"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-01.6"></script>
+  <script type="module" src="js/app.js?v=2026-10-01.7"></script>
 </body>
 </html>

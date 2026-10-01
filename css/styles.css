@@ -909,6 +909,23 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .cash-icon-btn:hover { background: var(--yellow-tint); color: var(--ink); }
 .cash-icon-btn.is-danger:hover { background: #FFE3E4; color: var(--red); }
 
+/* --- Willkommen ---------------------------------------------------------------------- */
+
+.intro-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }
+.intro-item { display: grid; grid-template-columns: 44px 1fr; gap: 14px; align-items: start; }
+.intro-badge {
+  display: grid; place-items: center; width: 44px; height: 44px;
+  border-radius: 50%; background: var(--b); color: var(--ink);
+  border: 2px solid var(--edge); box-shadow: var(--pop-sm);
+}
+.intro-item:nth-child(odd) .intro-badge { transform: rotate(-6deg); }
+.intro-item:nth-child(even) .intro-badge { transform: rotate(5deg); }
+.intro-text { display: flex; flex-direction: column; gap: 2px; font-size: 14.5px; line-height: 1.45; color: var(--text-soft); }
+.intro-name { font-family: var(--font-display); font-weight: 800; font-size: 17px; color: var(--ink); }
+.intro-text strong:not(.intro-name) { color: var(--ink); }
+.intro-note { margin: 0; }
+.intro-hide { font-size: 13.5px; }
+
 /* --- Gemeinsame Reise ------------------------------------------------------------ */
 
 .btn-share.is-shared { color: var(--ink); }

@@ -1421,6 +1421,7 @@ $('.menu-panel').addEventListener('click', async (e) => {
   const what = e.target.closest('[data-menu]')?.dataset.menu;
   if (!what) return;
   $('.menu').open = false;
+  if (what === 'intro') openIntro();
   if (what === 'categories') {
     renderCategoryManager();
     categoryDialog.showModal();
@@ -1507,6 +1508,16 @@ async function boot() {
     if (next && next !== backend.key) location.reload();
   });
 }
+
+// --- Willkommen -----------------------------------------------------------------------------
+// Kurze Übersicht beim Öffnen der Seite; „Nicht mehr anzeigen“ merkt sich jedes Gerät selbst.
+const introDialog = $('#intro-dialog');
+function openIntro() {
+  $('#intro-hide').checked = Boolean(readPref('introHidden'));
+  introDialog.showModal();
+}
+introDialog.addEventListener('close', () => writePref('introHidden', $('#intro-hide').checked || null));
+if (!readPref('introHidden')) openIntro();
 
 // Welche Version läuft gerade? (Zahl aus index.html, von deploy.sh erhöht) – hilft zu erkennen,
 // ob z. B. die App auf dem Home-Bildschirm noch einen alten Stand zeigt.
