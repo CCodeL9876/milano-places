@@ -7,8 +7,8 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte in Mailand – gefiltert nach Art und Entfernung zur Unterkunft.">
   <meta name="theme-color" content="#FFD23F">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-01.13" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-01.13">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-01.14" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-01.14">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
@@ -17,8 +17,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-01.13">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-01.13">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-01.14">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-01.14">
 </head>
 <body>
   <header class="topbar">
@@ -244,6 +244,31 @@
     </div>
   </dialog>
 
+  <!-- Hilfe, wenn der Standort verweigert wurde (v. a. iPhone, App auf dem Home-Bildschirm) -->
+  <dialog id="locate-dialog" class="dialog" aria-labelledby="locate-title">
+    <div class="dialog-inner">
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow">Live-Standort</span>
+          <h2 id="locate-title">Standort freigeben</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="Schließen"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </header>
+      <p class="locate-lead" id="locate-lead">Dein iPhone hat den Standort für diese Seite blockiert. So gibst du ihn frei:</p>
+      <ol class="locate-steps">
+        <li><strong>Einstellungen → Datenschutz &amp; Sicherheit → Ortungsdienste</strong>: ganz oben eingeschaltet.</li>
+        <li>In derselben Liste unten <strong>„Safari-Websites“</strong> antippen → <strong>„Beim Verwenden der App“</strong> wählen und <strong>„Genauer Standort“</strong> einschalten. Apps auf dem Home-Bildschirm nutzen genau diese Einstellung.</li>
+        <li><strong>Einstellungen → Apps → Safari → Standort</strong> (bis iOS 17: Einstellungen → Safari → Standort) auf <strong>„Fragen“</strong> oder <strong>„Erlauben“</strong> stellen.</li>
+        <li>Hast du die Abfrage in der Home-Bildschirm-App einmal mit „Nicht erlauben“ beantwortet, merkt sich iOS das. Dann das Symbol vom Home-Bildschirm löschen, den Reise-Link in Safari öffnen und über <strong>Teilen → Zum Home-Bildschirm</strong> neu hinzufügen. Beim nächsten Tipp auf das Fadenkreuz <strong>„Erlauben“</strong> wählen.</li>
+      </ol>
+      <p class="hint locate-note">Dein Standort bleibt auf deinem Gerät und wird nicht gespeichert oder geteilt.</p>
+      <footer class="dialog-foot">
+        <button class="btn btn-ghost" type="button" data-close>Schließen</button>
+        <button class="btn btn-primary" type="button" id="locate-retry">Nochmals versuchen</button>
+      </footer>
+    </div>
+  </dialog>
+
   <dialog id="cash-dialog" class="dialog" aria-labelledby="cash-title">
     <div class="dialog-inner">
       <header class="dialog-head">
@@ -368,24 +393,24 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-01.13"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-01.14"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-01.13",
-      "./js/backend.js": "./js/backend.js?v=2026-10-01.13",
-      "./js/categories.js": "./js/categories.js?v=2026-10-01.13",
-      "./js/config.js": "./js/config.js?v=2026-10-01.13",
-      "./js/geo.js": "./js/geo.js?v=2026-10-01.13",
-      "./js/icons.js": "./js/icons.js?v=2026-10-01.13",
-      "./js/importers.js": "./js/importers.js?v=2026-10-01.13",
-      "./js/map.js": "./js/map.js?v=2026-10-01.13",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-01.13",
-      "./js/store.js": "./js/store.js?v=2026-10-01.13"
+      "./js/app.js": "./js/app.js?v=2026-10-01.14",
+      "./js/backend.js": "./js/backend.js?v=2026-10-01.14",
+      "./js/categories.js": "./js/categories.js?v=2026-10-01.14",
+      "./js/config.js": "./js/config.js?v=2026-10-01.14",
+      "./js/geo.js": "./js/geo.js?v=2026-10-01.14",
+      "./js/icons.js": "./js/icons.js?v=2026-10-01.14",
+      "./js/importers.js": "./js/importers.js?v=2026-10-01.14",
+      "./js/map.js": "./js/map.js?v=2026-10-01.14",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-01.14",
+      "./js/store.js": "./js/store.js?v=2026-10-01.14"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-01.13"></script>
+  <script type="module" src="js/app.js?v=2026-10-01.14"></script>
 </body>
 </html>

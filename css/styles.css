@@ -965,6 +965,12 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .cash-icon-btn:hover { background: var(--yellow-tint); color: var(--ink); }
 .cash-icon-btn.is-danger:hover { background: #FFE3E4; color: var(--red); }
 
+/* --- Standort-Hilfe ------------------------------------------------------------------ */
+.locate-lead { margin: 0; font-size: 15px; line-height: 1.5; }
+.locate-steps { margin: 0; padding-left: 22px; display: grid; gap: 10px; font-size: 14px; line-height: 1.5; color: var(--text-soft); }
+.locate-steps strong { color: var(--ink); }
+.locate-note { margin: 0; }
+
 /* --- Willkommen ---------------------------------------------------------------------- */
 
 .intro-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 14px; }

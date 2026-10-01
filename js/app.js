@@ -147,7 +147,7 @@ const mapOptions = {
     return true;
   },
   onMarkerClick: (id) => selectPlace(id, { fly: false, scrollList: true }),
-  onLocateMessage: (msg) => toast(msg),
+  onLocateMessage: (kind) => locateProblem(kind),
   getInsets: mapInsets,
 };
 
@@ -1485,13 +1485,33 @@ document.addEventListener('keydown', (e) => {
 // --- Toast ------------------------------------------------------------------------------------
 
 let toastTimer;
+// Standort klappt nicht: bei „verweigert“ Schritt-für-Schritt-Hilfe, sonst kurze Meldung
+function locateProblem(kind) {
+  if (kind === 'denied') {
+    const standalone = navigator.standalone === true || matchMedia('(display-mode: standalone)').matches;
+    $('#locate-lead').textContent = standalone
+      ? 'Dein iPhone hat den Standort für die App auf dem Home-Bildschirm blockiert. So gibst du ihn frei:'
+      : 'Dein Browser hat den Standort für diese Seite blockiert. Auf dem iPhone gibst du ihn so frei:';
+    $('#locate-dialog').showModal();
+    return;
+  }
+  toast(kind === 'unsupported'
+    ? 'Dieser Browser kann den Standort nicht bestimmen.'
+    : 'Standort konnte gerade nicht bestimmt werden – am besten draussen oder mit WLAN eingeschaltet noch einmal versuchen.');
+}
+$('#locate-retry').addEventListener('click', () => {
+  $('#locate-dialog').close();
+  mapView.locate?.();
+});
+
 function toast(msg, { sticky = false } = {}) {
   const el = $('#toast');
   el.textContent = msg;
   el.hidden = false;
   requestAnimationFrame(() => el.classList.add('is-visible'));
   clearTimeout(toastTimer);
-  if (!sticky) toastTimer = setTimeout(() => el.classList.remove('is-visible'), 3200);
+  // Lesezeit: mindestens gut 3 s, bei langen Texten länger (max. 9 s)
+  if (!sticky) toastTimer = setTimeout(() => el.classList.remove('is-visible'), Math.min(9000, Math.max(3200, msg.length * 60)));
 }
 
 // --- Start ------------------------------------------------------------------------------------

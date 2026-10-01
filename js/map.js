@@ -123,7 +123,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
 
   function toggleLocate() {
     if (!locating) {
-      if (!navigator.geolocation) return onLocateMessage?.('Dieser Browser kann den Standort nicht bestimmen.');
+      if (!navigator.geolocation) return onLocateMessage?.('unsupported');
       locating = true;
       firstFix = true;
       setLocateState('waiting');
@@ -167,9 +167,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     // Bei laufender Verfolgung kurze Aussetzer (z. B. im Tunnel) ignorieren – nur beim Start melden
     if (!firstFix && meLatLng && e.code !== 1) return;
     stopLocate();
-    onLocateMessage?.(e.code === 1
-      ? 'Standort nicht erlaubt. Auf dem iPhone: Einstellungen → Datenschutz → Ortungsdienste → Safari-Websites → „Beim Verwenden“.'
-      : 'Standort konnte nicht bestimmt werden. Bitte später noch einmal versuchen.');
+    onLocateMessage?.(e.code === 1 ? 'denied' : 'unavailable');
   });
 
   const LocateControl = L.Control.extend({
@@ -371,5 +369,5 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
   }
 
 
-  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, centerOn, invalidate: () => map.invalidateSize() };
+  return { map, setPlaces, setAirbnb, setActive, focusPlace, fitTo, centerOn, locate: () => { if (!locating) toggleLocate(); }, invalidate: () => map.invalidateSize() };
 }
