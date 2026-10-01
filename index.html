@@ -17,8 +17,8 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,600..800&family=Instrument+Sans:ital,wght@0,400;0,500;0,600;0,700;1,400&display=swap" rel="stylesheet">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-01.4">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-01.4">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-01.5">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-01.5">
 </head>
 <body>
   <header class="topbar">
@@ -123,6 +123,16 @@
           </div>
         </details>
 
+        <!-- Reisekasse: öffnet das Fenster #cash-dialog -->
+        <button type="button" class="panel cash" id="cash-panel" aria-haspopup="dialog">
+          <span class="arch-badge" aria-hidden="true"><svg class="icon" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg></span>
+          <span class="cash-body">
+            <span class="eyebrow">Kasse</span>
+            <span class="cash-total" id="cash-total">0,00 €</span>
+          </span>
+          <svg class="icon panel-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg>
+        </button>
+
     </div>
 
     <section class="map-wrap" aria-label="Karte">
@@ -196,6 +206,75 @@
   </dialog>
 
   <!-- Teilen-Dialog -->
+  <dialog id="cash-dialog" class="dialog" aria-labelledby="cash-title">
+    <div class="dialog-inner">
+      <header class="dialog-head">
+        <div>
+          <span class="eyebrow">Reisekasse</span>
+          <h2 id="cash-title">Kasse</h2>
+        </div>
+        <button class="icon-btn" type="button" data-close aria-label="Schließen"><svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg></button>
+      </header>
+
+      <p id="cash-missing" class="cash-warn" hidden>Die Kasse ist in der Datenbank noch nicht eingerichtet. Bitte das SQL aus
+        <code>supabase/schema.sql</code> (Abschnitt „Reisekasse“) im Supabase SQL Editor ausführen.</p>
+
+      <section class="cash-section" aria-labelledby="cash-people-title">
+        <h3 id="cash-people-title">Teilnehmende</h3>
+        <div id="cash-people" class="cash-people"></div>
+        <form id="cash-person-form" class="inline-form" autocomplete="off">
+          <input id="cash-person-input" type="text" maxlength="30" placeholder="Name, z. B. Anna" aria-label="Name einer teilnehmenden Person">
+          <button class="btn btn-small" type="submit">Hinzufügen</button>
+        </form>
+      </section>
+
+      <section class="cash-section" aria-labelledby="cash-form-title">
+        <h3 id="cash-form-title">Rechnung erfassen</h3>
+        <p id="cash-form-hint" class="hint" hidden>Zuerst oben die Teilnehmenden eintragen.</p>
+        <form id="cash-form" class="cash-form" autocomplete="off" novalidate>
+          <div class="cash-row">
+            <label class="field">
+              <span>Betrag in €</span>
+              <input id="cash-amount" type="text" inputmode="decimal" placeholder="0,00">
+            </label>
+            <label class="field">
+              <span>Datum</span>
+              <input id="cash-date" type="date">
+            </label>
+          </div>
+          <label class="field">
+            <span>Wofür</span>
+            <input id="cash-what" type="text" maxlength="120" placeholder="z. B. Abendessen Trattoria Milanese">
+          </label>
+          <div class="field">
+            <span>Bezahlt von</span>
+            <div id="cash-payer" class="cash-pick" role="group" aria-label="Bezahlt von"></div>
+          </div>
+          <div class="field">
+            <span class="cash-label-row">Für wen <button type="button" class="btn-link" id="cash-all">alle auswählen</button></span>
+            <div id="cash-shared" class="cash-pick" role="group" aria-label="Für wen"></div>
+          </div>
+          <p id="cash-preview" class="cash-preview"></p>
+          <p id="cash-error" class="cash-error" role="alert"></p>
+          <div class="cash-actions">
+            <button class="btn btn-primary" type="submit" id="cash-submit">Rechnung speichern</button>
+            <button class="btn-link muted" type="button" id="cash-cancel" hidden>Abbrechen</button>
+          </div>
+        </form>
+      </section>
+
+      <section class="cash-section" aria-labelledby="cash-summary-title">
+        <h3 id="cash-summary-title">Abrechnung</h3>
+        <div id="cash-summary"></div>
+      </section>
+
+      <section class="cash-section" aria-labelledby="cash-list-title">
+        <h3 id="cash-list-title">Rechnungen</h3>
+        <ul id="cash-list" class="cash-list"></ul>
+      </section>
+    </div>
+  </dialog>
+
   <dialog id="share-dialog" class="dialog" aria-labelledby="share-title">
     <div class="dialog-inner">
       <header class="dialog-head">
@@ -239,24 +318,24 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-01.4"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-01.5"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-01.4",
-      "./js/backend.js": "./js/backend.js?v=2026-10-01.4",
-      "./js/categories.js": "./js/categories.js?v=2026-10-01.4",
-      "./js/config.js": "./js/config.js?v=2026-10-01.4",
-      "./js/geo.js": "./js/geo.js?v=2026-10-01.4",
-      "./js/icons.js": "./js/icons.js?v=2026-10-01.4",
-      "./js/importers.js": "./js/importers.js?v=2026-10-01.4",
-      "./js/map.js": "./js/map.js?v=2026-10-01.4",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-01.4",
-      "./js/store.js": "./js/store.js?v=2026-10-01.4"
+      "./js/app.js": "./js/app.js?v=2026-10-01.5",
+      "./js/backend.js": "./js/backend.js?v=2026-10-01.5",
+      "./js/categories.js": "./js/categories.js?v=2026-10-01.5",
+      "./js/config.js": "./js/config.js?v=2026-10-01.5",
+      "./js/geo.js": "./js/geo.js?v=2026-10-01.5",
+      "./js/icons.js": "./js/icons.js?v=2026-10-01.5",
+      "./js/importers.js": "./js/importers.js?v=2026-10-01.5",
+      "./js/map.js": "./js/map.js?v=2026-10-01.5",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-01.5",
+      "./js/store.js": "./js/store.js?v=2026-10-01.5"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-01.4"></script>
+  <script type="module" src="js/app.js?v=2026-10-01.5"></script>
 </body>
 </html>

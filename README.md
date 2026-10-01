@@ -38,6 +38,10 @@ im Import-Dialog hineinziehen. Die Unterkunft wird mit übernommen.
 - **Airbnb** per Adresse, Maps-Link, Koordinaten oder Klick auf die Karte setzen; optional „Links
   hinzufügen“ für das Airbnb-Inserat und einen Google-Maps-Link. Wird in der Datenbank gespeichert,
   nie im Quellcode (siehe `js/config.js`).
+- **Reservierungen** für Restaurants (Kategorie Essen) mit Datum und Uhrzeit; Filter „Reserviert“ sortiert nach Termin.
+- **Reisekasse** (Box „Kasse“ neben der Unterkunft): Teilnehmende eintragen, Rechnungen mit Betrag, Datum,
+  „Bezahlt von“ und „Für wen“ erfassen. Der Betrag wird gleichmässig aufgeteilt; die Abrechnung zeigt pro Person
+  Bezahlt, Anteil und Saldo sowie die kürzeste Liste an Ausgleichszahlungen. Rechenlogik in `js/cash.js`.
 - **Filter**: Kategorie-Chips (Mehrfachauswahl), Volltextsuche, Sortierung nach Entfernung/Name/Art/Datum.
 - **Eigene Kategorien** mit Emoji, Farbe und Stichwörtern (Standard-Kategorien nutzen Linien-Symbole) (Menü `•••` → „Kategorien verwalten“).
 - **Gemeinsame Reise**: Über „Teilen“ werden die Orte in eine Supabase-Datenbank hochgeladen; alle mit dem
@@ -56,6 +60,7 @@ milano-places/
 │   ├── app.js               Zustand, Filter, Rendering, Import-Ablauf, Dialoge, Teilen
 │   ├── backend.js           Speicher: lokal im Browser oder gemeinsame Reise in Supabase
 │   ├── config.js            Supabase-URL und öffentlicher Key (leer = nur lokal); Unterkunft NICHT hier eintragen (öffentlich auf GitHub)
+│   ├── cash.js              Reisekasse: Beträge in Cent, Aufteilung, Salden, Ausgleich
 │   ├── categories.js        Standard-Kategorien + Stichwort-Erkennung
 │   ├── icons.js             Linien-Symbole für Kategorien und Bedienelemente
 │   ├── importers.js         Parser für GeoJSON, CSV, KML, Links; Kategorie-Zuordnung

@@ -9,6 +9,7 @@ import {
 import { createMap } from './map.js';
 import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './config.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
+import { formatEuro, parseAmount, computeBalances, settle, sanitizeParticipants, sanitizeExpense } from './cash.js';
 
 const CITY_CENTER = { lat: 45.4642, lng: 9.19 };
 const SYNC_INTERVAL_MS = 20000;
@@ -22,6 +23,10 @@ const state = {
   places: [],
   airbnb: fixedAirbnb,
   customCategories: [],
+  // Reisekasse: [{ id, name }] und Rechnungen (siehe js/cash.js)
+  participants: [],
+  expenses: [],
+  cashMissing: false, // gemeinsame Reise, aber Tabelle/Spalte in Supabase fehlt noch
   ui: loadUi(),
 };
 
@@ -80,6 +85,9 @@ function applyData(data) {
   state.places = Array.isArray(data.places) ? data.places : [];
   state.airbnb = fixedAirbnb || data.airbnb || null;
   state.customCategories = (data.customCategories || []).map(sanitizeCategory);
+  state.participants = sanitizeParticipants(data.participants);
+  state.expenses = (data.expenses || []).map(sanitizeExpense).filter(Boolean);
+  state.cashMissing = Boolean(data.cashMissing);
 }
 
 // Führt eine Speicher-Operation aus. Schlägt sie in einer gemeinsamen Reise fehl,
@@ -315,6 +323,7 @@ function render({ fit = false } = {}) {
   renderChips(base, pool);
   renderList(visible, all.length);
   renderShareState();
+  renderCash();
 
   mapView.setPlaces(visible, catOf, activeId);
   mapView.setAirbnb(state.airbnb);
@@ -678,6 +687,274 @@ function resetFilters() {
   render({ fit: true });
 }
 
+// --- Reisekasse -------------------------------------------------------------------------------
+// Teilnehmende als feste Namensliste (state.participants), Rechnungen in state.expenses.
+// Gerechnet wird in js/cash.js (Cent-Beträge, gleichmässige Aufteilung, Ausgleich).
+
+const cashDialog = $('#cash-dialog');
+// Auswahl im Formular – bleibt beim Neuzeichnen (z. B. Abgleich alle 20 s) erhalten
+const cashForm = { editingId: null, payer: null, shared: new Set() };
+const todayIso = () => new Date().toLocaleDateString('sv-SE'); // JJJJ-MM-TT in Ortszeit
+const personName = (id) => state.participants.find((p) => p.id === id)?.name || 'Unbekannt';
+const cashBlocked = () => backend.kind === 'shared' && state.cashMissing;
+
+// „2026-10-01“ → „Do 1.10.“
+function shortDate(iso) {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+  if (!m) return '';
+  const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+  return `${['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}.`;
+}
+
+function renderCash() {
+  const total = state.expenses.reduce((sum, e) => sum + e.amountCents, 0);
+  $('#cash-total').textContent = formatEuro(total);
+  if (cashDialog.open) renderCashDialog();
+}
+
+function resetCashForm() {
+  cashForm.editingId = null;
+  const me = state.participants.find((p) => norm(p.name) === norm(memberName()));
+  cashForm.payer = (me || state.participants[0])?.id || null;
+  cashForm.shared = new Set(state.participants.map((p) => p.id));
+  $('#cash-amount').value = '';
+  $('#cash-what').value = '';
+  $('#cash-date').value = todayIso();
+  $('#cash-error').textContent = '';
+  $('#cash-form-title').textContent = 'Rechnung erfassen';
+  $('#cash-submit').textContent = 'Rechnung speichern';
+  $('#cash-cancel').hidden = true;
+}
+
+function renderCashDialog() {
+  const people = state.participants;
+  // Personen, die inzwischen entfernt wurden (z. B. von Mitreisenden), aus der Auswahl nehmen
+  if (cashForm.payer && !people.some((p) => p.id === cashForm.payer)) cashForm.payer = null;
+  for (const id of [...cashForm.shared]) if (!people.some((p) => p.id === id)) cashForm.shared.delete(id);
+
+  $('#cash-missing').hidden = !cashBlocked();
+  const used = new Set(state.expenses.flatMap((e) => [e.paidBy, ...e.sharedWith]));
+  $('#cash-people').innerHTML = people.length
+    ? people.map((p) => `<span class="cash-person">${escapeHtml(p.name)}<button type="button" class="cash-person-x" data-remove-person="${escapeHtml(p.id)}" aria-label="${escapeHtml(p.name)} entfernen" title="${used.has(p.id) ? 'Kommt in Rechnungen vor' : 'Entfernen'}">${icon('close', { size: 12, stroke: 2.6 })}</button></span>`).join('')
+    : '<p class="hint">Noch niemand eingetragen.</p>';
+
+  $('#cash-form').hidden = !people.length;
+  $('#cash-form-hint').hidden = !!people.length;
+  const chip = (p, on, attr) => `<button type="button" class="cash-chip" ${attr}="${escapeHtml(p.id)}" aria-pressed="${on}">${escapeHtml(p.name)}</button>`;
+  $('#cash-payer').innerHTML = people.map((p) => chip(p, cashForm.payer === p.id, 'data-payer')).join('');
+  $('#cash-shared').innerHTML = people.map((p) => chip(p, cashForm.shared.has(p.id), 'data-shared')).join('');
+  renderCashPreview();
+  renderCashSummary();
+  renderCashList();
+}
+
+function renderCashPreview() {
+  const cents = parseAmount($('#cash-amount').value);
+  const n = cashForm.shared.size;
+  $('#cash-preview').textContent = cents && n
+    ? `${n === 1 ? 'Ganz für 1 Person' : `Je ${formatEuro(Math.floor(cents / n))}${cents % n ? ' (±1 Cent)' : ''} für ${n} Personen`}`
+    : '';
+}
+
+function renderCashSummary() {
+  const box = $('#cash-summary');
+  if (!state.expenses.length) {
+    box.innerHTML = '<p class="hint">Noch keine Rechnungen erfasst.</p>';
+    return;
+  }
+  const balances = computeBalances(state.expenses, state.participants);
+  const total = state.expenses.reduce((sum, e) => sum + e.amountCents, 0);
+  const saldo = (c) => c > 0
+    ? `<span class="cash-pos">+${formatEuro(c)}</span>`
+    : c < 0 ? `<span class="cash-neg">−${formatEuro(-c)}</span>` : '<span class="muted">±0</span>';
+  const transfers = settle(balances);
+  box.innerHTML = `
+    <div class="cash-table-wrap">
+      <table class="cash-table">
+        <thead><tr><th scope="col">Person</th><th scope="col">Bezahlt</th><th scope="col">Anteil</th><th scope="col">Saldo</th></tr></thead>
+        <tbody>${balances.map((b) => `<tr><th scope="row">${escapeHtml(b.name)}</th><td>${formatEuro(b.paid)}</td><td>${formatEuro(b.share)}</td><td>${saldo(b.balance)}</td></tr>`).join('')}</tbody>
+        <tfoot><tr><th scope="row">Total</th><td>${formatEuro(total)}</td><td>${formatEuro(total)}</td><td></td></tr></tfoot>
+      </table>
+    </div>
+    <p class="hint cash-legend">Anteil = was die Person verbraucht hat. Plus = bekommt Geld zurück, Minus = schuldet Geld.</p>
+    <div class="cash-settle">
+      <h4>Ausgleich</h4>
+      ${transfers.length
+        ? `<ul>${transfers.map((t) => `<li><span><strong>${escapeHtml(personName(t.from))}</strong> ${icon('arrow-right', { size: 14, stroke: 2.4 })} <strong>${escapeHtml(personName(t.to))}</strong></span><span class="cash-settle-amount">${formatEuro(t.cents)}</span></li>`).join('')}</ul>`
+        : '<p class="hint">Alles ausgeglichen – niemand schuldet jemandem etwas.</p>'}
+    </div>`;
+}
+
+function renderCashList() {
+  const list = $('#cash-list');
+  if (!state.expenses.length) {
+    list.innerHTML = '';
+    return;
+  }
+  const allIds = state.participants.map((p) => p.id);
+  const sorted = [...state.expenses].sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.addedAt - a.addedAt);
+  list.innerHTML = sorted.map((e) => {
+    const forAll = allIds.length > 1 && allIds.every((id) => e.sharedWith.includes(id)) && e.sharedWith.length === allIds.length;
+    const each = Math.floor(e.amountCents / e.sharedWith.length);
+    const who = forAll ? 'alle' : e.sharedWith.map(personName).join(', ');
+    const meta = [
+      shortDate(e.date),
+      `bezahlt von ${escapeHtml(personName(e.paidBy))}`,
+      `für ${escapeHtml(who)}${e.sharedWith.length > 1 ? ` (je ${formatEuro(each)})` : ''}`,
+    ].filter(Boolean).join(' · ');
+    return `<li class="cash-item${cashForm.editingId === e.id ? ' is-editing' : ''}">
+      <div class="cash-item-main">
+        <span class="cash-item-title">${escapeHtml(e.title || 'Rechnung')}</span>
+        <span class="cash-item-meta">${meta}</span>
+      </div>
+      <span class="cash-item-amount">${formatEuro(e.amountCents)}</span>
+      <span class="cash-item-actions">
+        <button type="button" class="cash-icon-btn" data-edit-expense="${escapeHtml(e.id)}" aria-label="Rechnung bearbeiten" title="Bearbeiten">${icon('pencil', { size: 15, stroke: 2 })}</button>
+        <button type="button" class="cash-icon-btn is-danger" data-delete-expense="${escapeHtml(e.id)}" aria-label="Rechnung löschen" title="Löschen">${icon('trash', { size: 15, stroke: 2 })}</button>
+      </span>
+    </li>`;
+  }).join('');
+}
+
+function openCash() {
+  resetCashForm();
+  renderCashDialog();
+  cashDialog.showModal();
+}
+
+$('#cash-panel').addEventListener('click', openCash);
+
+$('#cash-person-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const input = $('#cash-person-input');
+  const name = input.value.trim().slice(0, 30);
+  if (!name) return;
+  if (cashBlocked()) return toast('Die Kasse ist in der Datenbank noch nicht eingerichtet (siehe Hinweis oben).');
+  if (state.participants.some((p) => norm(p.name) === norm(name))) return toast(`„${name}“ ist schon eingetragen`);
+  const person = { id: newId(), name };
+  state.participants.push(person);
+  // Neue Person beim gerade offenen Formular gleich mit auswählen
+  if (!cashForm.editingId) cashForm.shared.add(person.id);
+  if (!cashForm.payer) cashForm.payer = person.id;
+  input.value = '';
+  render();
+  const ok = await persist((b) => b.saveParticipants(state.participants), 'Person konnte nicht gespeichert werden');
+  if (!ok) {
+    state.participants = state.participants.filter((p) => p.id !== person.id);
+    render();
+  }
+});
+
+cashDialog.addEventListener('click', async (e) => {
+  const btn = e.target.closest('button');
+  if (!btn) return;
+
+  if (btn.dataset.removePerson) {
+    const person = state.participants.find((p) => p.id === btn.dataset.removePerson);
+    if (!person) return;
+    if (state.expenses.some((x) => x.paidBy === person.id || x.sharedWith.includes(person.id))) {
+      return toast(`„${person.name}“ kommt in Rechnungen vor – zuerst diese Rechnungen ändern oder löschen.`);
+    }
+    if (!confirm(`„${person.name}“ aus der Kasse entfernen?`)) return;
+    const before = state.participants;
+    state.participants = state.participants.filter((p) => p.id !== person.id);
+    render();
+    const ok = await persist((b) => b.saveParticipants(state.participants), 'Person konnte nicht entfernt werden');
+    if (!ok) { state.participants = before; render(); }
+    return;
+  }
+  if (btn.dataset.payer) {
+    cashForm.payer = btn.dataset.payer;
+    renderCashDialog();
+    return;
+  }
+  if (btn.dataset.shared) {
+    const id = btn.dataset.shared;
+    cashForm.shared.has(id) ? cashForm.shared.delete(id) : cashForm.shared.add(id);
+    renderCashDialog();
+    return;
+  }
+  if (btn.id === 'cash-all') {
+    cashForm.shared = new Set(state.participants.map((p) => p.id));
+    renderCashDialog();
+    return;
+  }
+  if (btn.id === 'cash-cancel') {
+    resetCashForm();
+    renderCashDialog();
+    return;
+  }
+  if (btn.dataset.editExpense) {
+    const exp = state.expenses.find((x) => x.id === btn.dataset.editExpense);
+    if (!exp) return;
+    cashForm.editingId = exp.id;
+    cashForm.payer = exp.paidBy;
+    cashForm.shared = new Set(exp.sharedWith);
+    $('#cash-amount').value = (exp.amountCents / 100).toFixed(2).replace('.', ',');
+    $('#cash-what').value = exp.title;
+    $('#cash-date').value = exp.date;
+    $('#cash-error').textContent = '';
+    $('#cash-form-title').textContent = 'Rechnung bearbeiten';
+    $('#cash-submit').textContent = 'Änderungen speichern';
+    $('#cash-cancel').hidden = false;
+    renderCashDialog();
+    $('#cash-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
+    return;
+  }
+  if (btn.dataset.deleteExpense) {
+    const exp = state.expenses.find((x) => x.id === btn.dataset.deleteExpense);
+    if (!exp) return;
+    if (!confirm(`Rechnung „${exp.title || 'Rechnung'}“ über ${formatEuro(exp.amountCents)} löschen?`)) return;
+    state.expenses = state.expenses.filter((x) => x.id !== exp.id);
+    if (cashForm.editingId === exp.id) resetCashForm();
+    render();
+    const ok = await persist((b) => b.deleteExpense(exp.id), 'Rechnung konnte nicht gelöscht werden');
+    if (!ok) { state.expenses.push(exp); render(); return; }
+    toast('Rechnung gelöscht');
+  }
+});
+
+$('#cash-amount').addEventListener('input', renderCashPreview);
+
+$('#cash-form').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const error = $('#cash-error');
+  const amountCents = parseAmount($('#cash-amount').value);
+  const sharedWith = state.participants.map((p) => p.id).filter((id) => cashForm.shared.has(id));
+  error.textContent = cashBlocked() ? 'Die Kasse ist in der Datenbank noch nicht eingerichtet (siehe Hinweis oben).'
+    : !amountCents ? 'Bitte einen gültigen Betrag eingeben, z. B. 24,50.'
+    : !cashForm.payer ? 'Bitte auswählen, wer bezahlt hat.'
+    : !sharedWith.length ? 'Bitte bei „Für wen“ mindestens eine Person auswählen.'
+    : '';
+  if (error.textContent) return;
+
+  const data = {
+    title: $('#cash-what').value.trim().slice(0, 120),
+    amountCents,
+    paidBy: cashForm.payer,
+    sharedWith,
+    date: $('#cash-date').value || '',
+  };
+  const editing = state.expenses.find((x) => x.id === cashForm.editingId);
+  if (editing) {
+    const before = { ...editing };
+    Object.assign(editing, data);
+    resetCashForm();
+    render();
+    const ok = await persist((b) => b.updateExpense(editing.id, editing), 'Rechnung konnte nicht gespeichert werden');
+    if (!ok) { Object.assign(editing, before); render(); return; }
+    toast('Rechnung geändert');
+    return;
+  }
+  const exp = { id: newId(), ...data, addedBy: memberName(), addedAt: Date.now() };
+  state.expenses.push(exp);
+  resetCashForm();
+  render();
+  const ok = await persist((b) => b.addExpenses([exp]), 'Rechnung konnte nicht gespeichert werden');
+  if (!ok) { state.expenses = state.expenses.filter((x) => x.id !== exp.id); render(); return; }
+  toast(`Rechnung gespeichert: ${formatEuro(exp.amountCents)}`);
+});
+
 // --- Liste ---------------------------------------------------------------------------------
 
 $('#place-list').addEventListener('click', async (e) => {
@@ -852,6 +1129,20 @@ async function handleFiles(files) {
         state.customCategories.push(...(b.customCategories || []).map(sanitizeCategory).filter((c) => !known.has(c.id)));
         if (!state.airbnb && b.airbnb) state.airbnb = b.airbnb;
         await persistSettings();
+        if (!state.participants.length && b.participants?.length) {
+          state.participants = sanitizeParticipants(b.participants);
+          await persist((be) => be.saveParticipants(state.participants), 'Teilnehmende konnten nicht übernommen werden');
+        }
+        // Rechnungen nur übernehmen, wenn alle beteiligten Personen hier bekannt sind
+        const people = new Set(state.participants.map((p) => p.id));
+        const knownExp = new Set(state.expenses.map((x) => x.id));
+        const newExp = (b.expenses || []).map(sanitizeExpense)
+          .filter((x) => x && !knownExp.has(x.id) && people.has(x.paidBy) && x.sharedWith.every((id) => people.has(id)));
+        if (newExp.length) {
+          state.expenses.push(...newExp);
+          await persist((be) => be.addExpenses(newExp), 'Rechnungen konnten nicht übernommen werden');
+          log(`${file.name}: ${newExp.length} Rechnung(en) für die Kasse übernommen.`, 'ok');
+        }
       }
       const { added, missing } = await importRaw(result.places, file.name);
       allAdded.push(...added);
@@ -1011,6 +1302,13 @@ async function startTrip() {
     const places = state.places.map((p) => ({ ...p, addedBy: p.addedBy || by }));
     await shared.saveSettings({ airbnb: state.airbnb, customCategories: state.customCategories });
     if (places.length) await shared.addPlaces(places);
+    // Kasse mitnehmen; fehlt die Tabelle in Supabase noch, startet die Reise trotzdem
+    try {
+      if (state.participants.length) await shared.saveParticipants(state.participants);
+      if (state.expenses.length) await shared.addExpenses(state.expenses.map((x) => ({ ...x, addedBy: x.addedBy || by })));
+    } catch (err) {
+      toast(`Kasse wurde nicht hochgeladen: ${err.message}`);
+    }
     switchTo(shared);
     toast('Gemeinsame Reise gestartet – jetzt den Link teilen');
     await refresh({ fit: true });

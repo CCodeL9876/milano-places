@@ -42,6 +42,10 @@ export class LocalBackend {
   async deletePlace() { this.#save(); }
   async deleteAllPlaces() { this.#save(); }
   async saveSettings() { this.#save(); }
+  async saveParticipants() { this.#save(); }
+  async addExpenses() { this.#save(); }
+  async updateExpense() { this.#save(); }
+  async deleteExpense() { this.#save(); }
 }
 
 // --- Supabase ------------------------------------------------------------------------
@@ -84,6 +88,30 @@ const fromRow = (r) => ({
   addedAt: Date.parse(r.created_at) || 0,
 });
 
+// Reisekasse: Beträge in Cent, Personen über ihre ID (Namen stehen in trip_settings.participants)
+const toExpenseRow = (e, key) => ({
+  id: e.id,
+  trip_key: key,
+  title: e.title || '',
+  amount_cents: e.amountCents,
+  paid_by: e.paidBy,
+  shared_with: e.sharedWith,
+  spent_on: e.date || null,
+  added_by: e.addedBy || '',
+  created_at: new Date(e.addedAt || Date.now()).toISOString(),
+});
+
+const fromExpenseRow = (r) => ({
+  id: r.id,
+  title: r.title || '',
+  amountCents: r.amount_cents,
+  paidBy: r.paid_by,
+  sharedWith: Array.isArray(r.shared_with) ? r.shared_with : [],
+  date: r.spent_on || '',
+  addedBy: r.added_by || '',
+  addedAt: Date.parse(r.created_at) || 0,
+});
+
 function check({ error }) {
   if (error) throw new Error(error.message || 'Unbekannter Datenbankfehler');
 }
@@ -109,16 +137,22 @@ export class SharedBackend {
   }
 
   async load() {
-    const [places, settings] = await Promise.all([
+    const [places, settings, expenses] = await Promise.all([
       this.db.from('places').select('*').eq('trip_key', this.key).order('created_at'),
       this.db.from('trip_settings').select('*').eq('trip_key', this.key).maybeSingle(),
+      this.db.from('expenses').select('*').eq('trip_key', this.key).order('created_at'),
     ]);
     check(places);
     check(settings);
+    // Fehlt die Tabelle „expenses“ noch (SQL nicht ausgeführt), läuft der Rest der App trotzdem weiter.
+    if (expenses.error) console.warn('Kasse nicht verfügbar (supabase/schema.sql ausgeführt?):', expenses.error.message);
     return {
       places: places.data.map(fromRow),
       airbnb: settings.data?.airbnb ?? null,
       customCategories: settings.data?.custom_categories ?? [],
+      participants: settings.data?.participants ?? [],
+      expenses: expenses.error ? [] : expenses.data.map(fromExpenseRow),
+      cashMissing: Boolean(expenses.error) || !(settings.data == null || 'participants' in settings.data),
     };
   }
 
@@ -140,6 +174,31 @@ export class SharedBackend {
 
   async deleteAllPlaces() {
     check(await this.db.from('places').delete().eq('trip_key', this.key));
+  }
+
+  // Nur die Spalte participants – Unterkunft und Kategorien bleiben unberührt
+  async saveParticipants(participants) {
+    check(await this.db.from('trip_settings').upsert(
+      { trip_key: this.key, participants, updated_at: new Date().toISOString() },
+      { onConflict: 'trip_key' },
+    ));
+  }
+
+  async addExpenses(expenses) {
+    for (let i = 0; i < expenses.length; i += 500) {
+      check(await this.db.from('expenses').insert(expenses.slice(i, i + 500).map((e) => toExpenseRow(e, this.key))));
+    }
+  }
+
+  async updateExpense(id, e) {
+    const { title, amount_cents, paid_by, shared_with, spent_on } = toExpenseRow(e, this.key);
+    check(await this.db.from('expenses')
+      .update({ title, amount_cents, paid_by, shared_with, spent_on, updated_at: new Date().toISOString() })
+      .eq('id', id).eq('trip_key', this.key));
+  }
+
+  async deleteExpense(id) {
+    check(await this.db.from('expenses').delete().eq('id', id).eq('trip_key', this.key));
   }
 
   async saveSettings({ airbnb, customCategories }) {

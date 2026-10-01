@@ -37,15 +37,17 @@ export function loadLocalData() {
     places: Array.isArray(saved.places) ? saved.places : [],
     airbnb: saved.airbnb || null,
     customCategories: Array.isArray(saved.customCategories) ? saved.customCategories : [],
+    participants: Array.isArray(saved.participants) ? saved.participants : [],
+    expenses: Array.isArray(saved.expenses) ? saved.expenses : [],
   };
 }
 
 // Schrumpft die Liste, wird der bisherige Stand vorher als Sicherung abgelegt (siehe loadLocalBackup).
-export function saveLocalData({ places, airbnb, customCategories }) {
+export function saveLocalData({ places, airbnb, customCategories, participants, expenses }) {
   const previous = read(DATA_KEY);
   const prevCount = Array.isArray(previous?.places) ? previous.places.length : 0;
   if (prevCount > places.length) write(BACKUP_KEY, { ...previous, savedAt: new Date().toISOString() });
-  return write(DATA_KEY, { places, airbnb, customCategories });
+  return write(DATA_KEY, { places, airbnb, customCategories, participants, expenses });
 }
 
 export function loadLocalBackup() {
@@ -74,6 +76,8 @@ export function downloadBackup(state) {
     airbnb: state.airbnb,
     customCategories: state.customCategories,
     places: state.places,
+    participants: state.participants,
+    expenses: state.expenses,
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
   const a = document.createElement('a');

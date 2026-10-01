@@ -785,6 +785,114 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 }
 .category-form .btn { align-self: flex-start; }
 
+/* --- Reisekasse -------------------------------------------------------------------- */
+
+/* Box „Kasse“ neben der Unterkunft: Mint, ein Klick öffnet das Kassen-Fenster */
+.panel.cash {
+  position: relative; isolation: isolate;
+  display: flex; align-items: center; gap: 14px;
+  padding: 16px; border: 0; background: none; color: var(--ink);
+  font: inherit; text-align: left; cursor: pointer;
+  border-radius: var(--radius-lg);
+  transition: transform 0.08s;
+}
+.panel.cash::before {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  background: var(--mint); border: 2px solid var(--edge); border-radius: inherit;
+  box-shadow: 4px 4px 0 var(--edge); transition: box-shadow 0.08s;
+}
+.panel.cash:active { transform: translate(2px, 2px); }
+.panel.cash:active::before { box-shadow: 1px 1px 0 var(--edge); }
+.panel.cash:hover .cash-total { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.cash-body { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cash-total {
+  font-family: var(--font-display); font-weight: 800; font-size: 21px; line-height: 1.1;
+  font-variant-numeric: tabular-nums; white-space: nowrap;
+}
+
+/* Kassen-Fenster */
+.cash-warn {
+  margin: 0; padding: 10px 12px; font-size: 13.5px;
+  background: #FFE3E4; border: 2px solid var(--red); border-radius: var(--radius);
+}
+.cash-section { display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 2px dashed var(--edge); }
+.cash-section h3 { font-size: 19px; }
+.cash-section > .hint { margin: 0; }
+.cash-people { display: flex; flex-wrap: wrap; gap: 8px; }
+.cash-people .hint { margin: 0; }
+.cash-person {
+  display: inline-flex; align-items: center; gap: 2px; padding: 3px 4px 3px 12px;
+  background: var(--card); border: 2px solid var(--edge); border-radius: 999px;
+  font-weight: 700; font-size: 14px;
+}
+.cash-person-x {
+  display: grid; place-items: center; width: 26px; height: 26px;
+  border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer;
+}
+.cash-person-x:hover { background: #FFE3E4; color: var(--red); }
+
+.cash-form { display: flex; flex-direction: column; gap: 12px; }
+.cash-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cash-label-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
+.cash-label-row .btn-link { padding: 0; font-size: 12.5px; }
+.cash-pick { display: flex; flex-wrap: wrap; gap: 8px; }
+.cash-chip {
+  min-height: 38px; padding: 0 14px;
+  border: 2px solid var(--edge); border-radius: 999px;
+  background: var(--card); color: var(--ink); font: 700 14px var(--font-body); cursor: pointer;
+}
+.cash-chip:hover { background: var(--yellow-tint); }
+.cash-chip[aria-pressed="true"] { background: var(--mint); box-shadow: var(--pop-sm); }
+#cash-payer .cash-chip[aria-pressed="true"] { background: var(--yellow); }
+.cash-preview { margin: 0; font-size: 13px; font-weight: 700; }
+.cash-preview:empty, .cash-error:empty { display: none; }
+.cash-error { margin: 0; font-size: 13px; font-weight: 700; color: var(--red); }
+.cash-actions { display: flex; align-items: center; gap: 16px; }
+
+.cash-table-wrap { overflow-x: auto; background: var(--card); border: 2px solid var(--edge); border-radius: var(--radius); }
+.cash-table { width: 100%; border-collapse: collapse; font-size: 14px; font-variant-numeric: tabular-nums; }
+.cash-table th, .cash-table td { padding: 8px 10px; text-align: right; white-space: nowrap; }
+.cash-table th:first-child { text-align: left; }
+.cash-table thead th { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; border-bottom: 2px solid var(--edge); }
+.cash-table tbody tr + tr > * { border-top: 1px solid var(--line); }
+.cash-table tfoot > tr > * { border-top: 2px solid var(--edge); font-weight: 800; }
+.cash-pos { color: #1D7A5F; font-weight: 800; }
+.cash-neg { color: var(--red); font-weight: 800; }
+.cash-legend { margin: 0; font-size: 12px; }
+.cash-settle { margin-top: 6px; }
+.cash-settle h4 { margin: 0 0 6px; font-family: var(--font-display); font-weight: 800; font-size: 15px; }
+.cash-settle .hint { margin: 0; }
+.cash-settle ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 6px; }
+.cash-settle li {
+  display: flex; justify-content: space-between; align-items: center; gap: 10px;
+  padding: 8px 12px; background: var(--yellow-tint); border: 2px solid var(--edge); border-radius: var(--radius);
+}
+.cash-settle li > span:first-child { display: inline-flex; align-items: center; flex-wrap: wrap; gap: 6px; }
+.cash-settle-amount { font-family: var(--font-display); font-weight: 800; white-space: nowrap; font-variant-numeric: tabular-nums; }
+
+.cash-list { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.cash-list:empty { display: none; }
+.cash-item {
+  display: grid; grid-template-columns: 1fr auto; grid-template-areas: "main amount" "main actions";
+  gap: 2px 10px; padding: 10px 8px 8px 12px;
+  background: var(--card); border: 2px solid var(--edge); border-radius: var(--radius);
+}
+.cash-item.is-editing { box-shadow: 4px 4px 0 var(--yellow), 4px 4px 0 2px var(--edge); }
+.cash-item-main { grid-area: main; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.cash-item-title { font-weight: 700; overflow-wrap: anywhere; }
+.cash-item-meta { font-size: 12.5px; color: var(--muted); }
+.cash-item-amount {
+  grid-area: amount; justify-self: end;
+  font-family: var(--font-display); font-weight: 800; font-size: 16px; white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+.cash-item-actions { grid-area: actions; justify-self: end; display: flex; gap: 2px; }
+.cash-icon-btn {
+  display: grid; place-items: center; width: 34px; height: 34px;
+  border: 0; border-radius: 50%; background: none; color: var(--muted); cursor: pointer;
+}
+.cash-icon-btn:hover { background: var(--yellow-tint); color: var(--ink); }
+.cash-icon-btn.is-danger:hover { background: #FFE3E4; color: var(--red); }
+
 /* --- Gemeinsame Reise ------------------------------------------------------------ */
 
 .btn-share.is-shared { color: var(--ink); }
@@ -901,6 +1009,11 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   }
   .panel-row > details[open] { grid-column: 1 / -1; }
   .panel-row .panel.airbnb { padding: 10px 12px; }
+  .panel-row .panel.cash { padding: 10px 12px; gap: 10px; }
+  .panel-row .panel.cash .eyebrow { display: block; font-size: 10px; }
+  .panel-row .cash-total { font-size: 15px; }
+  .cash-icon-btn { width: 40px; height: 40px; }
+  .cash-person-x { width: 32px; height: 32px; }
   .panel-row .panel-summary { gap: 10px; align-items: center; }
   .panel-row .arch-badge { width: 30px; height: 30px; }
   .panel-row .arch-badge .icon { width: 15px; height: 15px; }
