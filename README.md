@@ -42,6 +42,9 @@ im Import-Dialog hineinziehen. Die Unterkunft wird mit übernommen.
 - **Reisekasse** (Box „Kasse“ neben der Unterkunft): Teilnehmende eintragen, Rechnungen mit Betrag, Datum,
   „Bezahlt von“ und „Für wen“ erfassen. Der Betrag wird gleichmässig aufgeteilt; die Abrechnung zeigt pro Person
   Bezahlt, Anteil und Saldo sowie die kürzeste Liste an Ausgleichszahlungen. Rechenlogik in `js/cash.js`.
+- **Mailänder Viertel** (88 NIL) als dezente Flächen mit Namen auf der Karte; Knopf mit Ebenen-Symbol schaltet sie ein/aus.
+  Daten: Comune di Milano, „Nuclei d’Identità Locale (NIL) vigenti – PGT 2030“ (CC BY 4.0), vereinfacht in `data/quartieri.geojson`.
+- **Live-Standort** (Fadenkreuz-Knopf auf der Karte), **Route** in Google Maps zu jedem Ort und zur Unterkunft.
 - **Filter**: Kategorie-Chips (Mehrfachauswahl), Volltextsuche, Sortierung nach Entfernung/Name/Art/Datum.
 - **Eigene Kategorien** mit Emoji, Farbe und Stichwörtern (Standard-Kategorien nutzen Linien-Symbole) (Menü `•••` → „Kategorien verwalten“).
 - **Gemeinsame Reise**: Über „Teilen“ werden die Orte in eine Supabase-Datenbank hochgeladen; alle mit dem
@@ -68,6 +71,7 @@ milano-places/
 │   ├── map.js               Leaflet-Karte, Marker, Airbnb-Marker
 │   ├── map-google.js        Test-Variante mit Google Maps (Google-Orte antippen & übernehmen), siehe ANLEITUNG.md
 │   └── store.js             localStorage, Backup-Download, IDs und Reise-Schlüssel
+├── data/quartieri.geojson   Grenzen der 88 Mailänder Viertel (vereinfacht, ~76 KB)
 ├── milano-import.json       Orte aus der Milano-Seite als Backup-Datei zum Importieren (nur lokal)
 ├── serve.py                 lokaler Testserver ohne Browser-Cache
 ├── deploy.sh                ein Befehl: Version erhöhen, committen, zu GitHub hochladen

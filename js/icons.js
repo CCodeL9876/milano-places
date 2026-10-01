@@ -33,6 +33,8 @@ const PATHS = {
   check: '<path d="M20 6 9 17l-5-5"/>',
   // Navigationspfeil für „Route“ (nach Lucide „navigation“, ISC-Lizenz)
   navigation: '<path d="M3 11 22 2l-9 19-2-8Z"/>',
+  // Ebenen für „Viertel ein/aus“ (nach Lucide „layers“, ISC-Lizenz)
+  layers: '<path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/>',
   // Fadenkreuz für „Mein Standort“ (nach Lucide „locate-fixed“, ISC-Lizenz)
   locate: '<path d="M2 12h3M19 12h3M12 2v3M12 19v3"/><circle cx="12" cy="12" r="7"/><circle cx="12" cy="12" r="3"/>',
   // Geldbörse und Stift (nach Lucide „wallet“ / „pencil“, ISC-Lizenz)

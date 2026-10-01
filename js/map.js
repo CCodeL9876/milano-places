@@ -1,4 +1,4 @@
-// Leaflet-Karte: Orts-Marker, Airbnb-Marker, Radius-Kreis und Live-Standort.
+// Leaflet-Karte: Orts-Marker, Airbnb-Marker, Radius-Kreis, Live-Standort und Mailänder Viertel.
 /* global L */
 
 import { hasCoords, formatKm, formatReservation, routeUrl, homeRouteUrl } from './geo.js';
@@ -187,6 +187,100 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
   });
   // Unten rechts stapelt Leaflet neue Knöpfe über die bestehenden: Standort liegt also über dem Zoom
   new LocateControl().addTo(map);
+
+  // --- Viertel (NIL) -------------------------------------------------------------------------
+  // Die 88 Mailänder Viertel als dezente Flächen mit Namen – zur Orientierung. Daten: data/quartieri.geojson
+  // (Comune di Milano, vereinfacht). Namen ab Zoom 13 kurz, ab Zoom 15 vollständig. Knopf über dem Standort.
+  const QUARTER_COLORS = ['#FF9FB4', '#69D5B5', '#FFD23F', '#B6A4FF', '#8FD0FF', '#FF8A4C'];
+  const QUARTER_PREF = 'milano.quarters';
+  const quarterLayer = L.layerGroup();
+  const quarterLabels = L.layerGroup();
+  let quartersLoaded = false;
+  let quartersBtn = null;
+  const quartersWanted = () => { try { return localStorage.getItem(QUARTER_PREF) !== 'off'; } catch { return true; } };
+
+  // Schwerpunkt des grössten Rings – genügt für die Beschriftung
+  function labelPoint(geometry) {
+    const polys = geometry.type === 'Polygon' ? [geometry.coordinates] : geometry.coordinates;
+    let best = null;
+    for (const poly of polys) {
+      const r = poly[0];
+      let a = 0, cx = 0, cy = 0;
+      for (let i = 0, j = r.length - 1; i < r.length; j = i++) {
+        const f = r[j][0] * r[i][1] - r[i][0] * r[j][1];
+        a += f; cx += (r[j][0] + r[i][0]) * f; cy += (r[j][1] + r[i][1]) * f;
+      }
+      if (a && (!best || Math.abs(a) > best.a)) best = { a: Math.abs(a), lat: cy / (3 * a), lng: cx / (3 * a) };
+    }
+    return best && [best.lat, best.lng];
+  }
+
+  async function loadQuarters() {
+    if (quartersLoaded) return;
+    quartersLoaded = true;
+    try {
+      const data = await (await fetch('data/quartieri.geojson')).json();
+      L.geoJSON(data, {
+        interactive: false,
+        attribution: 'Viertel: <a href="https://dati.comune.milano.it/dataset/ds964-nil-vigenti-pgt-2030" target="_blank" rel="noopener">Comune di Milano</a> (CC BY 4.0)',
+        style: (f) => ({
+          className: 'quarter-area',
+          color: '#16131A', weight: 1, opacity: 0.4, dashArray: '3 4',
+          fillColor: QUARTER_COLORS[f.properties.id % QUARTER_COLORS.length], fillOpacity: 0.1,
+        }),
+      }).addTo(quarterLayer);
+      for (const f of data.features) {
+        const at = labelPoint(f.geometry);
+        if (!at) continue;
+        const [short, ...rest] = String(f.properties.name).split(' · ');
+        const html = `<span class="quarter-name">${escapeHtml(short)}${rest.length ? `<span class="quarter-rest"> · ${escapeHtml(rest.join(' · '))}</span>` : ''}</span>`;
+        L.marker(at, {
+          icon: L.divIcon({ className: 'quarter-label', html, iconSize: [140, 40], iconAnchor: [70, 20] }),
+          interactive: false, keyboard: false, zIndexOffset: -1000,
+        }).addTo(quarterLabels);
+      }
+    } catch (err) {
+      quartersLoaded = false;
+      console.warn('Viertel konnten nicht geladen werden:', err);
+    }
+  }
+
+  function updateQuarterZoom() {
+    const z = map.getZoom();
+    el.classList.toggle('quarters-no-labels', z < 13);
+    el.classList.toggle('quarters-short', z < 15);
+  }
+
+  function setQuarters(on) {
+    try { localStorage.setItem(QUARTER_PREF, on ? 'on' : 'off'); } catch { /* privates Fenster */ }
+    quartersBtn?.setAttribute('aria-pressed', String(on));
+    if (on) {
+      loadQuarters();
+      quarterLayer.addTo(map);
+      quarterLabels.addTo(map);
+    } else {
+      quarterLayer.remove();
+      quarterLabels.remove();
+    }
+  }
+
+  const QuartersControl = L.Control.extend({
+    options: { position: 'bottomright' },
+    onAdd() {
+      quartersBtn = L.DomUtil.create('button', 'locate-btn quarters-btn');
+      quartersBtn.type = 'button';
+      quartersBtn.title = 'Viertel ein-/ausblenden';
+      quartersBtn.setAttribute('aria-label', 'Viertel anzeigen');
+      quartersBtn.innerHTML = icon('layers', { size: 20, stroke: 2.1 });
+      L.DomEvent.disableClickPropagation(quartersBtn);
+      L.DomEvent.on(quartersBtn, 'click', () => setQuarters(quartersBtn.getAttribute('aria-pressed') !== 'true'));
+      return quartersBtn;
+    },
+  });
+  new QuartersControl().addTo(map);
+  map.on('zoomend', updateQuarterZoom);
+  updateQuarterZoom();
+  setQuarters(quartersWanted());
 
   function fitPoints(pts, maxZoom) {
     const { top, right, bottom, left } = insets();
