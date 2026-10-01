@@ -29,6 +29,8 @@ create index if not exists places_trip_key_idx on public.places (trip_key);
 alter table public.places add column if not exists gluten_free boolean not null default false;
 -- Nachträglich ergänzt: Reservierung { date, time } pro Restaurant (null = nicht reserviert)
 alter table public.places add column if not exists reservation jsonb;
+-- Nachträglich ergänzt: Ort besucht (gilt für die ganze Reise); bewusst ohne „not null“
+alter table public.places add column if not exists visited boolean default false;
 
 -- Routen (z. B. GPX-Rennradstrecken): eigene Tabelle statt lat/lng, weil eine Route aus
 -- vielen aneinandergereihten Punkten besteht (points), nicht aus einem einzelnen Ort.

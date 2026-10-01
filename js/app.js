@@ -458,11 +458,13 @@ function renderList(visible, total) {
       ? `<span class="place-dist">${distanceHtml(p.distance)}</span>`
       : !hasCoords(p) ? '<span class="place-dist is-missing" title="Kein Standort">ohne Standort</span>' : '';
     const gf = !!p.glutenFree;
+    const visited = !!p.visited;
     const res = p.reservation;
     // Reservieren nur bei Restaurants – eine bestehende Reservierung bleibt sichtbar, auch wenn die Kategorie wechselt
     const canReserve = p.category === RESERVABLE_CATEGORY || !!res;
-    return `<li class="place${p.id === activeId ? ' is-active' : ''}${i >= PLACES_PREVIEW ? ' is-extra' : ''}" data-id="${p.id}" style="${categoryStyle(c)}">
+    return `<li class="place${visited ? ' is-visited' : ''}${p.id === activeId ? ' is-active' : ''}${i >= PLACES_PREVIEW ? ' is-extra' : ''}" data-id="${p.id}" style="${categoryStyle(c)}">
       <div class="place-row">
+      <button type="button" class="visit-toggle" data-action="visited" aria-pressed="${visited}" aria-label="${escapeHtml(p.name)} besucht" title="${visited ? 'Besucht – antippen zum Entfernen' : 'Als besucht markieren'}">${icon('check', { size: 16, stroke: 3 })}</button>
       <button type="button" class="place-main" data-action="select" aria-expanded="${p.id === activeId}">
         <span class="place-icon" aria-hidden="true">${categoryIcon(c, { size: 18, stroke: 1.7 })}</span>
         <span class="place-body">
@@ -987,6 +989,18 @@ $('#place-list').addEventListener('click', async (e) => {
     }
     toast(place.glutenFree ? `„${place.name}“ als glutenfrei markiert` : `Glutenfrei-Markierung entfernt`);
   }
+  if (action === 'visited') {
+    place.visited = !place.visited;
+    render();
+    const ok = await persist((b) => b.updatePlace(id, { visited: place.visited }),
+      'Besucht konnte nicht gespeichert werden (Spalte „visited“ in Supabase angelegt?)');
+    if (!ok) {
+      place.visited = !place.visited;
+      render();
+      return;
+    }
+    toast(place.visited ? `„${place.name}“ als besucht markiert` : 'Markierung „besucht“ entfernt');
+  }
   if (action === 'reserve') await saveReservation(place, { date: '', time: '' }, 'Als reserviert markiert');
   if (action === 'unreserve') await saveReservation(place, null, 'Reservierung entfernt');
   if (action === 'delete') {
@@ -1094,6 +1108,7 @@ async function addPlaces(raws, override = 'auto') {
       addedBy: String(raw.addedBy || by).slice(0, 80),
       addedAt: raw.addedAt || Date.now(),
       ...(raw.glutenFree ? { glutenFree: true } : {}),
+      ...(raw.visited ? { visited: true } : {}),
       ...(cleanReservation(raw.reservation) ? { reservation: cleanReservation(raw.reservation) } : {}),
     };
     if ((place.url && urls.has(place.url)) || keys.has(coordKey(place))) {

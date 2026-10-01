@@ -29,6 +29,8 @@ const PATHS = {
   'trending-up': '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
   // Kalender mit Häkchen (nach Lucide „calendar-check“, ISC-Lizenz)
   'calendar-check': '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/>',
+  // Häkchen für „besucht“ (nach Lucide „check“, ISC-Lizenz)
+  check: '<path d="M20 6 9 17l-5-5"/>',
   // Navigationspfeil für „Route“ (nach Lucide „navigation“, ISC-Lizenz)
   navigation: '<path d="M3 11 22 2l-9 19-2-8Z"/>',
   // Fadenkreuz für „Mein Standort“ (nach Lucide „locate-fixed“, ISC-Lizenz)

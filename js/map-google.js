@@ -211,10 +211,10 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   }
 
   // --- Eigene Orte --------------------------------------------------------------------------------
-  function pinElement(cat, active, reserved) {
+  function pinElement(cat, active, reserved, visited) {
     const wrap = document.createElement('div');
     wrap.className = 'gpin';
-    wrap.innerHTML = `<div class="pin${active ? ' is-active' : ''}${reserved ? ' is-reserved' : ''}" style="${categoryStyle(cat)}">${categoryIcon(cat, { size: 14, stroke: 2.3 })}</div>`;
+    wrap.innerHTML = `<div class="pin${active ? ' is-active' : ''}${reserved ? ' is-reserved' : ''}${visited ? ' is-visited' : ''}" style="${categoryStyle(cat)}">${categoryIcon(cat, { size: 14, stroke: 2.3 })}</div>`;
     return wrap;
   }
 
@@ -235,7 +235,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       const marker = new AdvancedMarkerElement({
         map,
         position: { lat: p.lat, lng: p.lng },
-        content: pinElement(cat, p.id === currentId, !!p.reservation),
+        content: pinElement(cat, p.id === currentId, !!p.reservation, !!p.visited),
         title: p.name,
         zIndex: p.id === currentId ? 1000 : 1,
       });
