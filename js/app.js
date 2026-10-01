@@ -275,6 +275,12 @@ function filterBase(places) {
     norm(`${p.name} ${p.address} ${p.note} ${p.listName} ${p.addedBy || ''} ${catOf(p.category).label} ${p.reservation ? 'reserviert' : ''}`).includes(q));
 }
 
+// Nächster Termin zuerst; Reservierungen ohne Datum/Uhrzeit ans Ende, darunter nach Name
+function sortByReservation(list) {
+  const key = (p) => `${p.reservation?.date || '9999-99-99'}T${p.reservation?.time || '99:99'}`;
+  return list.sort((a, b) => key(a).localeCompare(key(b)) || a.name.localeCompare(b.name, 'de'));
+}
+
 function sortPlaces(list) {
   const byName = (a, b) => a.name.localeCompare(b.name, 'de');
   const order = displayCategories().map((c) => c.id);
@@ -296,13 +302,17 @@ function render({ fit = false } = {}) {
   const all = placesWithDistance();
   const base = filterBase(all);
   const selected = new Set(state.ui.categories);
-  const visible = sortPlaces(selected.size ? base.filter((p) => selected.has(p.category)) : base);
+  // Filter „Reserviert“ lässt sich mit den Kategorien kombinieren und sortiert nach Termin statt nach Entfernung
+  if (state.ui.reserved && !state.places.some((p) => p.reservation)) state.ui.reserved = false;
+  const pool = state.ui.reserved ? base.filter((p) => p.reservation) : base;
+  const filtered = selected.size ? pool.filter((p) => selected.has(p.category)) : pool;
+  const visible = state.ui.reserved ? sortByReservation(filtered) : sortPlaces(filtered);
   lastVisible = visible;
 
   if (activeId && !visible.some((p) => p.id === activeId)) activeId = null;
 
   renderAirbnb();
-  renderChips(base);
+  renderChips(base, pool);
   renderList(visible, all.length);
   renderShareState();
 
@@ -342,9 +352,9 @@ function renderAirbnb() {
   $('.airbnb .link-row')?.classList.toggle('is-stacked', !!fixedAirbnb);
 }
 
-function renderChips(base) {
+function renderChips(base, pool) {
   const counts = new Map();
-  for (const p of base) counts.set(p.category, (counts.get(p.category) || 0) + 1);
+  for (const p of pool) counts.set(p.category, (counts.get(p.category) || 0) + 1);
   const selected = new Set(state.ui.categories);
   const used = new Set(state.places.map((p) => p.category));
 
@@ -357,9 +367,17 @@ function renderChips(base) {
       </button>`;
     });
 
+  // „Reserviert“ erscheint, sobald mindestens ein Ort reserviert ist
+  const reservedCount = base.filter((p) => p.reservation).length;
+  const reservedChip = reservedCount || state.ui.reserved
+    ? `<button type="button" class="chip chip-reserved" data-filter="reserved" aria-pressed="${!!state.ui.reserved}">
+        <span class="chip-icon">${icon('calendar-check', { size: 15, stroke: 2 })}</span>Reserviert<span class="chip-count">${reservedCount}</span>
+      </button>`
+    : '';
+
   $('#category-chips').innerHTML =
-    `<button type="button" class="chip chip-all" data-cat="" aria-pressed="${!selected.size}">Alle<span class="chip-count">${base.length}</span></button>` +
-    chips.join('');
+    `<button type="button" class="chip chip-all" data-cat="" aria-pressed="${!selected.size}">Alle<span class="chip-count">${pool.length}</span></button>` +
+    reservedChip + chips.join('');
 }
 
 // Startansicht: nur die ersten PLACES_PREVIEW Orte, der Rest ist über „Alle … anzeigen“ aufklappbar.
@@ -394,8 +412,10 @@ function renderList(visible, total) {
   const empty = $('#empty-state');
   renderPlaceMore(visible.length);
   $('#result-count').innerHTML = total
-    ? `<strong>${visible.length} ${visible.length === 1 ? 'Ort' : 'Orte'}</strong> von ${total}`
+    ? `<strong>${visible.length} ${visible.length === 1 ? 'Ort' : 'Orte'}</strong> von ${total}${state.ui.reserved ? ' · nach Termin' : ''}`
     : '';
+  // Beim Filter „Reserviert“ gilt die Termin-Reihenfolge – die Sortier-Auswahl würde nur verwirren
+  $('.sort').hidden = !!state.ui.reserved;
 
   if (!visible.length) {
     list.innerHTML = '';
@@ -635,6 +655,11 @@ $('#sort').addEventListener('change', (e) => {
 $('#category-chips').addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
   if (!chip) return;
+  if (chip.dataset.filter === 'reserved') {
+    state.ui.reserved = !state.ui.reserved;
+    render();
+    return;
+  }
   const id = chip.dataset.cat;
   if (!id) state.ui.categories = [];
   else {
@@ -647,6 +672,7 @@ $('#category-chips').addEventListener('click', (e) => {
 
 function resetFilters() {
   state.ui.categories = [];
+  state.ui.reserved = false;
   state.ui.search = '';
   $('#search').value = '';
   render({ fit: true });

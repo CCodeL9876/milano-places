@@ -10,7 +10,7 @@ const DATA_KEY = `${PREFIX}.v1`;
 const UI_KEY = `${PREFIX}.ui`;
 const BACKUP_KEY = `${PREFIX}.v1.backup`;
 
-const DEFAULT_UI = { categories: [], search: '', sort: 'distance' };
+const DEFAULT_UI = { categories: [], search: '', sort: 'distance', reserved: false };
 
 function read(key) {
   try {

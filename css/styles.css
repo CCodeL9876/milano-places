@@ -439,6 +439,10 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .chip-all[aria-pressed="true"]::before { background: var(--ink); box-shadow: 3px 3px 0 var(--pink); }
 .chip-all[aria-pressed="true"] .chip-count { color: var(--yellow); opacity: 0.85; }
 .chip.is-empty:not([aria-pressed="true"]) { opacity: 0.5; }
+/* Filter „Reserviert“: gelb wie das Reservierungs-Etikett, etwas abgesetzt von den Kategorien */
+.chip-reserved { --c: var(--yellow); }
+.chip-reserved::before { border-style: dashed; }
+.chip-reserved[aria-pressed="true"]::before { border-style: solid; }
 
 /* --- Liste ------------------------------------------------------------------------ */
 
