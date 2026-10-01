@@ -6,7 +6,7 @@
 
 import { hasCoords } from './geo.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
-import { CITY, popupHtml, escapeHtml, safeHttpUrl } from './map.js';
+import { CITY, popupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl } from './map.js';
 
 const LOAD_TIMEOUT_MS = 12000;
 
@@ -282,7 +282,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
     content.innerHTML = `<div class="home-pin" title="Unser Airbnb">${icon('home', { size: 15, stroke: 2.2 })}</div>`;
     airbnbMarker = new AdvancedMarkerElement({ map, position: toLatLng(airbnb), content, title: 'Unser Airbnb', zIndex: 2000 });
     airbnbMarker.addListener('click', () => {
-      info.setContent(`<div class="popup"><span class="popup-cat" style="--c:#FFD23F;--ci:#16131A">Unser Airbnb</span><strong class="popup-name">${escapeHtml(airbnb.label)}</strong></div>`);
+      info.setContent(airbnbPopupHtml(airbnb));
       info.open({ map, anchor: airbnbMarker });
     });
   }

@@ -1,7 +1,7 @@
 // Leaflet-Karte: Orts-Marker, Airbnb-Marker, Radius-Kreis und Live-Standort.
 /* global L */
 
-import { hasCoords, formatKm, formatReservation } from './geo.js';
+import { hasCoords, formatKm, formatReservation, routeUrl, homeRouteUrl } from './geo.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 
 export const CITY = { center: [45.4642, 9.19], zoom: 13 };
@@ -21,9 +21,17 @@ export const escapeHtml = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // Popup-Inhalte – gemeinsam für die OpenStreetMap-Karte (hier) und die Google-Test-Variante (map-google.js)
+export function airbnbPopupHtml(airbnb) {
+  return `
+    <div class="popup">
+      <span class="popup-cat" style="--c:#FFD23F;--ci:#16131A">Unser Airbnb</span>
+      <strong class="popup-name">${escapeHtml(airbnb.label)}</strong>
+      <a class="popup-link" href="${escapeHtml(homeRouteUrl(airbnb))}" target="_blank" rel="noopener">${icon('navigation', { size: 13, stroke: 2.2 })} Route zur Unterkunft ↗</a>
+    </div>`;
+}
+
 export function popupHtml(p, cat) {
   const dist = p.distance != null ? `<span class="popup-dist">${formatKm(p.distance)} von der Unterkunft</span>` : '';
-  const gmaps = safeHttpUrl(p.url) || `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}`;
   return `
     <div class="popup">
       <span class="popup-cat" style="${categoryStyle(cat)}">${escapeHtml(cat.label)}</span>
@@ -32,7 +40,7 @@ export function popupHtml(p, cat) {
       ${p.reservation ? `<span class="popup-res">${icon('calendar-check', { size: 13, stroke: 2 })} ${escapeHtml(formatReservation(p.reservation))}</span>` : ''}
       ${p.glutenFree ? `<span class="popup-gf">${icon('wheat-off', { size: 13, stroke: 2 })} Glutenfrei</span>` : ''}
       ${dist}
-      <a class="popup-link" href="${escapeHtml(gmaps)}" target="_blank" rel="noopener">In Google Maps öffnen ↗</a>
+      <a class="popup-link" href="${escapeHtml(routeUrl(p))}" target="_blank" rel="noopener">${icon('navigation', { size: 13, stroke: 2.2 })} Route in Google Maps ↗</a>
     </div>`;
 }
 
@@ -235,7 +243,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
       zIndexOffset: 2000,
       keyboard: false,
     })
-      .bindPopup(`<div class="popup"><span class="popup-cat" style="--c:#FFD23F;--ci:#16131A">Unser Airbnb</span><strong class="popup-name">${escapeHtml(airbnb.label)}</strong></div>`, { closeButton: false, className: 'llocs-popup' })
+      .bindPopup(airbnbPopupHtml(airbnb), { closeButton: false, className: 'llocs-popup' })
       .addTo(map);
   }
 

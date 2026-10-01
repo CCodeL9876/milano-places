@@ -1,5 +1,5 @@
 import { DEFAULT_CATEGORIES, FALLBACK_CATEGORY } from './categories.js';
-import { haversineKm, hasCoords, parseCoords, formatKm, geocode, formatReservation } from './geo.js';
+import { haversineKm, hasCoords, parseCoords, formatKm, geocode, formatReservation, routeUrl, homeRouteUrl } from './geo.js';
 import { parseFile, parseLinks, assignCategory } from './importers.js';
 import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey, loadLocalBackup, clearLocalBackup } from './store.js';
 import {
@@ -351,6 +351,11 @@ function renderAirbnb() {
     link.hidden = !links?.url;
     if (links?.url) link.href = links.url;
   }
+  const route = $('#airbnb-route');
+  if (route) {
+    route.hidden = !a;
+    if (a) route.href = homeRouteUrl(a);
+  }
   const mapsLink = $('#airbnb-maps-link');
   if (mapsLink) {
     mapsLink.hidden = !links?.mapsUrl;
@@ -449,7 +454,6 @@ function renderList(visible, total) {
   const cats = displayCategories();
   list.innerHTML = visible.map((p, i) => {
     const c = catOf(p.category);
-    const gmaps = p.url || (hasCoords(p) ? `https://www.google.com/maps/search/?api=1&query=${p.lat},${p.lng}` : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(p.name)}`);
     const dist = p.distance != null
       ? `<span class="place-dist">${distanceHtml(p.distance)}</span>`
       : !hasCoords(p) ? '<span class="place-dist is-missing" title="Kein Standort">ohne Standort</span>' : '';
@@ -482,7 +486,7 @@ function renderList(visible, total) {
             </select>
           </label>
           ${!hasCoords(p) ? '<button type="button" class="chip-btn" data-action="geocode">Standort suchen</button>' : ''}
-          <a class="chip-btn" href="${escapeHtml(gmaps)}" target="_blank" rel="noopener">Google Maps ${icon('external', { size: 12, stroke: 2.2 })}</a>
+          <a class="chip-btn route-btn" href="${escapeHtml(routeUrl(p))}" target="_blank" rel="noopener" title="Route von deinem Standort in Google Maps">${icon('navigation', { size: 14, stroke: 2.2 })}Route</a>
           <button type="button" class="chip-btn chip-btn-icon danger" data-action="delete" aria-label="Entfernen" title="Entfernen">${icon('trash', { size: 15, stroke: 1.9 })}</button>
         </div>
       </div>
