@@ -738,6 +738,9 @@ function renderCashDialog() {
     ? people.map((p) => `<span class="cash-person">${escapeHtml(p.name)}<button type="button" class="cash-person-x" data-remove-person="${escapeHtml(p.id)}" aria-label="${escapeHtml(p.name)} entfernen" title="${used.has(p.id) ? 'Kommt in Rechnungen vor' : 'Entfernen'}">${icon('close', { size: 12, stroke: 2.6 })}</button></span>`).join('')
     : '<p class="hint">Noch niemand eingetragen.</p>';
 
+  $('#cash-people-count').textContent = people.length ? `· ${people.length}` : '';
+  $('#cash-list-count').textContent = state.expenses.length ? `· ${state.expenses.length}` : '';
+  $('#cash-list-empty').hidden = state.expenses.length > 0;
   $('#cash-form').hidden = !people.length;
   $('#cash-form-hint').hidden = !!people.length;
   const chip = (p, on, attr) => `<button type="button" class="cash-chip" ${attr}="${escapeHtml(p.id)}" aria-pressed="${on}">${escapeHtml(p.name)}</button>`;
@@ -818,6 +821,8 @@ function renderCashList() {
 
 function openCash() {
   resetCashForm();
+  $('#cash-people-fold').open = !state.participants.length;
+  $('#cash-list-fold').open = false;
   renderCashDialog();
   cashDialog.showModal();
 }

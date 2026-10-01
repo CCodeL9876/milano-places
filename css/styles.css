@@ -817,6 +817,22 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 }
 .cash-section { display: flex; flex-direction: column; gap: 10px; padding-top: 16px; border-top: 2px dashed var(--edge); }
 .cash-section h3 { font-size: 19px; }
+/* Klappbare Abschnitte (Teilnehmende, Rechnungen): ganze Kopfzeile ist die Schaltfläche */
+.cash-fold { gap: 0; }
+.cash-fold-head {
+  display: flex; align-items: center; justify-content: space-between; gap: 10px;
+  min-height: 36px; cursor: pointer; list-style: none; border-radius: var(--radius-sm);
+}
+.cash-fold-head::-webkit-details-marker { display: none; }
+.cash-fold-head:hover h3 { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+.cash-fold-count { font-family: var(--font-body); font-weight: 600; font-size: 15px; color: var(--muted); }
+.cash-fold-chevron {
+  flex: none; display: grid; place-items: center; width: 30px; height: 30px; padding: 5px;
+  border: 2px solid var(--edge); border-radius: 50%; background: var(--card); transition: transform 0.2s;
+}
+.cash-fold[open] .cash-fold-chevron { transform: rotate(180deg); }
+.cash-fold-body { display: flex; flex-direction: column; gap: 10px; padding-top: 10px; }
+.cash-fold-body > .hint { margin: 0; }
 .cash-section > .hint { margin: 0; }
 .cash-people { display: flex; flex-wrap: wrap; gap: 8px; }
 .cash-people .hint { margin: 0; }
