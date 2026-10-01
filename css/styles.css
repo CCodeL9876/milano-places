@@ -498,6 +498,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 }
 .gmap-tools button[aria-pressed="true"] { background: var(--ink); color: var(--yellow); }
 
+.popup-res { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: 4px; font-size: 12px; font-weight: 800; color: var(--ink); background: var(--yellow); border: 1.5px solid var(--edge); border-radius: 999px; padding: 1px 7px 1px 5px; }
 .popup-gf { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; font-size: 12px; font-weight: 800; color: var(--ink); background: var(--mint); border: 1.5px solid var(--edge); border-radius: 999px; padding: 1px 7px 1px 5px; }
 /* „Alle … Orte anzeigen“ / „Weniger anzeigen“ unter der Liste */
 .list-more {
@@ -540,6 +541,24 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .place-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .place-name { font-family: var(--font-display); font-weight: 800; font-size: 16px; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .place-meta { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Reservierung: gelbes Etikett unter dem Namen, wie auf der Milano-Seite */
+.place-res {
+  align-self: flex-start; display: inline-flex; align-items: center; gap: 5px;
+  margin-top: 4px; padding: 1px 8px 1px 6px;
+  font-family: var(--font-display); font-weight: 800; font-size: 12px; white-space: nowrap;
+  background: var(--yellow); color: var(--ink); border: 1.5px solid var(--edge); border-radius: 999px;
+}
+.res-mark { align-self: flex-start; }
+.res-edit {
+  display: flex; flex-direction: column; align-items: flex-start; gap: 8px;
+  padding: 10px 12px; background: var(--yellow-tint); border: 2px solid var(--edge); border-radius: var(--radius);
+}
+.res-title { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-display); font-weight: 800; font-size: 14px; }
+.res-fields { display: flex; gap: 8px; width: 100%; }
+.res-fields input { min-height: 38px; padding: 6px 10px; }
+.res-fields input[type="date"] { flex: 1.4; min-width: 0; }
+.res-fields input[type="time"] { flex: 1; min-width: 0; }
+.res-edit .btn-link { padding: 0; font-size: 12.5px; }
 .place-dist {
   flex: none;
   font-weight: 700; font-size: 15px; white-space: nowrap;
@@ -607,6 +626,12 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   transition: transform 0.15s;
 }
 .pin .icon { width: 14px; height: 14px; }
+/* Reserviert: kleines gelbes Kalender-Abzeichen oben rechts am Marker */
+.pin { position: relative; }
+.pin.is-reserved::after {
+  content: ''; position: absolute; top: -6px; right: -6px; width: 12px; height: 12px;
+  border-radius: 50%; background: var(--yellow); border: 2px solid var(--edge);
+}
 .pin:hover { transform: scale(1.12) rotate(-4deg); }
 .pin.is-active {
   transform: scale(1.3);

@@ -1,5 +1,5 @@
 import { DEFAULT_CATEGORIES, FALLBACK_CATEGORY } from './categories.js';
-import { haversineKm, hasCoords, parseCoords, formatKm, geocode } from './geo.js';
+import { haversineKm, hasCoords, parseCoords, formatKm, geocode, formatReservation } from './geo.js';
 import { parseFile, parseLinks, assignCategory } from './importers.js';
 import { loadUi, saveUi, readPref, writePref, downloadBackup, newId, newTripKey, loadLocalBackup, clearLocalBackup } from './store.js';
 import {
@@ -272,7 +272,7 @@ function filterBase(places) {
   const q = norm(state.ui.search.trim());
   if (!q) return places;
   return places.filter((p) =>
-    norm(`${p.name} ${p.address} ${p.note} ${p.listName} ${p.addedBy || ''} ${catOf(p.category).label}`).includes(q));
+    norm(`${p.name} ${p.address} ${p.note} ${p.listName} ${p.addedBy || ''} ${catOf(p.category).label} ${p.reservation ? 'reserviert' : ''}`).includes(q));
 }
 
 function sortPlaces(list) {
@@ -424,6 +424,9 @@ function renderList(visible, total) {
       ? `<span class="place-dist">${distanceHtml(p.distance)}</span>`
       : !hasCoords(p) ? '<span class="place-dist is-missing" title="Kein Standort">ohne Standort</span>' : '';
     const gf = !!p.glutenFree;
+    const res = p.reservation;
+    // Reservieren nur bei Restaurants – eine bestehende Reservierung bleibt sichtbar, auch wenn die Kategorie wechselt
+    const canReserve = p.category === RESERVABLE_CATEGORY || !!res;
     return `<li class="place${p.id === activeId ? ' is-active' : ''}${i >= PLACES_PREVIEW ? ' is-extra' : ''}" data-id="${p.id}" style="${categoryStyle(c)}">
       <div class="place-row">
       <button type="button" class="place-main" data-action="select" aria-expanded="${p.id === activeId}">
@@ -431,6 +434,7 @@ function renderList(visible, total) {
         <span class="place-body">
           <span class="place-name">${escapeHtml(p.name)}</span>
           <span class="place-meta">${escapeHtml(c.label)}${p.address ? ` · ${escapeHtml(p.address)}` : ''}</span>
+          ${res ? `<span class="place-res">${icon('calendar-check', { size: 13, stroke: 2.2 })}${escapeHtml(formatReservation(res))}</span>` : ''}
         </span>
         ${dist}
       </button>
@@ -439,6 +443,7 @@ function renderList(visible, total) {
       <div class="place-details">
         ${p.note ? `<p class="place-note">${escapeHtml(p.note)}</p>` : ''}
         ${p.addedBy ? `<p class="place-by">Hinzugefügt von ${escapeHtml(p.addedBy)}</p>` : ''}
+        ${canReserve ? reservationHtml(res) : ''}
         <div class="place-actions">
           <label class="cat-select-wrap">
             <span class="visually-hidden">Kategorie</span>
@@ -453,6 +458,48 @@ function renderList(visible, total) {
       </div>
     </li>`;
   }).join('');
+}
+
+// --- Reservierung (nur Restaurants) ----------------------------------------------------
+// place.reservation = { date: 'JJJJ-MM-TT', time: 'HH:MM' } (beide optional) oder nicht gesetzt.
+
+const RESERVABLE_CATEGORY = 'essen';
+
+function cleanReservation(r) {
+  if (!r || typeof r !== 'object') return null;
+  return {
+    date: /^\d{4}-\d{2}-\d{2}$/.test(r.date || '') ? r.date : '',
+    time: /^\d{2}:\d{2}$/.test(r.time || '') ? r.time : '',
+  };
+}
+
+function reservationHtml(res) {
+  if (!res) {
+    return `<button type="button" class="chip-btn res-mark" data-action="reserve">${icon('calendar-check', { size: 15, stroke: 2 })}Als reserviert markieren</button>`;
+  }
+  return `<div class="res-edit">
+      <span class="res-title">${icon('calendar-check', { size: 15, stroke: 2.2 })}Reserviert</span>
+      <div class="res-fields">
+        <input type="date" data-action="res-date" value="${escapeHtml(res.date || '')}" aria-label="Datum der Reservierung">
+        <input type="time" data-action="res-time" value="${escapeHtml(res.time || '')}" aria-label="Uhrzeit der Reservierung">
+      </div>
+      <button type="button" class="btn-link muted" data-action="unreserve">Reservierung entfernen</button>
+    </div>`;
+}
+
+async function saveReservation(place, next, message) {
+  const before = place.reservation || null;
+  const value = next ? cleanReservation(next) : null;
+  if (value) place.reservation = value; else delete place.reservation;
+  render();
+  const ok = await persist((b) => b.updatePlace(place.id, { reservation: value }),
+    'Reservierung konnte nicht gespeichert werden (Spalte „reservation“ in Supabase angelegt?)');
+  if (!ok) {
+    if (before) place.reservation = before; else delete place.reservation;
+    render();
+    return;
+  }
+  toast(message);
 }
 
 // --- Auswahl ------------------------------------------------------------------------
@@ -627,6 +674,8 @@ $('#place-list').addEventListener('click', async (e) => {
     }
     toast(place.glutenFree ? `„${place.name}“ als glutenfrei markiert` : `Glutenfrei-Markierung entfernt`);
   }
+  if (action === 'reserve') await saveReservation(place, { date: '', time: '' }, 'Als reserviert markiert');
+  if (action === 'unreserve') await saveReservation(place, null, 'Reservierung entfernt');
   if (action === 'delete') {
     if (!confirm(`„${place.name}“ entfernen?`)) return;
     state.places = state.places.filter((p) => p.id !== id);
@@ -640,6 +689,12 @@ $('#place-list').addEventListener('click', async (e) => {
 });
 
 $('#place-list').addEventListener('change', (e) => {
+  const field = { 'res-date': 'date', 'res-time': 'time' }[e.target.dataset.action];
+  if (field) {
+    const place = state.places.find((p) => p.id === e.target.closest('.place').dataset.id);
+    if (place) saveReservation(place, { ...place.reservation, [field]: e.target.value }, 'Reservierung gespeichert');
+    return;
+  }
   if (e.target.dataset.action !== 'category') return;
   const id = e.target.closest('.place').dataset.id;
   const place = state.places.find((p) => p.id === id);
@@ -726,6 +781,7 @@ async function addPlaces(raws, override = 'auto') {
       addedBy: String(raw.addedBy || by).slice(0, 80),
       addedAt: raw.addedAt || Date.now(),
       ...(raw.glutenFree ? { glutenFree: true } : {}),
+      ...(cleanReservation(raw.reservation) ? { reservation: cleanReservation(raw.reservation) } : {}),
     };
     if ((place.url && urls.has(place.url)) || keys.has(coordKey(place))) {
       dupes++;

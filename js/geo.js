@@ -1,5 +1,19 @@
 // Distanzberechnung, Koordinaten aus Google-Maps-Links lesen und Geocoding über OpenStreetMap.
 
+// Reservierung { date: 'JJJJ-MM-TT', time: 'HH:MM' } → „Sa 3.10., 19:10 Uhr“. Beides ist optional;
+// ohne Angaben bleibt nur „Reserviert“.
+export function formatReservation(r) {
+  if (!r) return '';
+  const parts = [];
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(r.date || '');
+  if (m) {
+    const d = new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+    parts.push(`${['So', 'Mo', 'Di', 'Mi', 'Do', 'Fr', 'Sa'][d.getDay()]} ${d.getDate()}.${d.getMonth() + 1}.`);
+  }
+  if (/^\d{2}:\d{2}$/.test(r.time || '')) parts.push(`${r.time} Uhr`);
+  return parts.length ? `Reserviert · ${parts.join(', ')}` : 'Reserviert';
+}
+
 export function haversineKm(lat1, lng1, lat2, lng2) {
   const toRad = (d) => (d * Math.PI) / 180;
   const dLat = toRad(lat2 - lat1);

@@ -46,7 +46,7 @@ export class LocalBackend {
 
 // --- Supabase ------------------------------------------------------------------------
 
-const PATCH_COLUMNS = { name: 'name', address: 'address', lat: 'lat', lng: 'lng', url: 'url', note: 'note', category: 'category', listName: 'list_name', glutenFree: 'gluten_free' };
+const PATCH_COLUMNS = { name: 'name', address: 'address', lat: 'lat', lng: 'lng', url: 'url', note: 'note', category: 'category', listName: 'list_name', glutenFree: 'gluten_free', reservation: 'reservation' };
 
 const toRow = (p, key) => ({
   id: p.id,
@@ -64,6 +64,8 @@ const toRow = (p, key) => ({
   // Immer mitschicken: Bei einem Sammel-Insert füllt Supabase fehlende Felder einzelner Zeilen mit null
   // statt mit dem Standardwert – das verletzt „not null“, sobald nur manche Orte glutenfrei sind.
   gluten_free: !!p.glutenFree,
+  // nur mitschicken, wenn gesetzt: die Spalte ist optional (null = nicht reserviert)
+  ...(p.reservation ? { reservation: p.reservation } : {}),
 });
 
 const fromRow = (r) => ({
@@ -77,6 +79,7 @@ const fromRow = (r) => ({
   listName: r.list_name || '',
   category: r.category,
   glutenFree: r.gluten_free === true,
+  reservation: r.reservation && typeof r.reservation === 'object' ? r.reservation : null,
   addedBy: r.added_by || '',
   addedAt: Date.parse(r.created_at) || 0,
 });

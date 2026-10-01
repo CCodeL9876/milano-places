@@ -1,7 +1,7 @@
 // Leaflet-Karte: Orts-Marker, Airbnb-Marker und Radius-Kreis.
 /* global L */
 
-import { hasCoords, formatKm } from './geo.js';
+import { hasCoords, formatKm, formatReservation } from './geo.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
 
 export const CITY = { center: [45.4642, 9.19], zoom: 13 };
@@ -29,6 +29,7 @@ export function popupHtml(p, cat) {
       <span class="popup-cat" style="${categoryStyle(cat)}">${escapeHtml(cat.label)}</span>
       <strong class="popup-name">${escapeHtml(p.name)}</strong>
       ${p.address ? `<span class="popup-addr">${escapeHtml(p.address)}</span>` : ''}
+      ${p.reservation ? `<span class="popup-res">${icon('calendar-check', { size: 13, stroke: 2 })} ${escapeHtml(formatReservation(p.reservation))}</span>` : ''}
       ${p.glutenFree ? `<span class="popup-gf">${icon('wheat-off', { size: 13, stroke: 2 })} Glutenfrei</span>` : ''}
       ${dist}
       <a class="popup-link" href="${escapeHtml(gmaps)}" target="_blank" rel="noopener">In Google Maps öffnen ↗</a>
@@ -81,10 +82,10 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets }) {
     });
   }
 
-  function placeIcon(cat, active) {
+  function placeIcon(cat, active, reserved) {
     return L.divIcon({
       className: '',
-      html: `<div class="pin${active ? ' is-active' : ''}" style="${categoryStyle(cat)}">${categoryIcon(cat, { size: 14, stroke: 2.3 })}</div>`,
+      html: `<div class="pin${active ? ' is-active' : ''}${reserved ? ' is-reserved' : ''}" style="${categoryStyle(cat)}">${categoryIcon(cat, { size: 14, stroke: 2.3 })}</div>`,
       iconSize: [30, 30],
       iconAnchor: [15, 15],
       popupAnchor: [0, -20],
@@ -100,7 +101,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets }) {
       if (!hasCoords(p)) continue;
       const cat = catOf(p.category);
       const m = L.marker([p.lat, p.lng], {
-        icon: placeIcon(cat, p.id === currentId),
+        icon: placeIcon(cat, p.id === currentId, !!p.reservation),
         title: p.name,
         zIndexOffset: p.id === currentId ? 1000 : 0,
         riseOnHover: true,
@@ -108,7 +109,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets }) {
       m.bindPopup(popupHtml(p, cat), { closeButton: false, className: 'llocs-popup' });
       m.on('click', () => onMarkerClick?.(p.id));
       m.addTo(placeLayer);
-      markers.set(p.id, { marker: m, cat });
+      markers.set(p.id, { marker: m, cat, reserved: !!p.reservation });
     }
   }
 
@@ -138,7 +139,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets }) {
       const entry = markers.get(key);
       if (!entry) continue;
       const on = key === id;
-      entry.marker.setIcon(placeIcon(entry.cat, on));
+      entry.marker.setIcon(placeIcon(entry.cat, on, entry.reserved));
       entry.marker.setZIndexOffset(on ? 1000 : 0);
     }
     activeId = id;

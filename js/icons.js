@@ -27,6 +27,8 @@ const PATHS = {
   glass: '<path d="M6.5 3h11c.3 3.2.1 6.4-1.4 8.4A5.4 5.4 0 0 1 12 13.4a5.4 5.4 0 0 1-4.1-2C6.4 9.4 6.2 6.2 6.5 3Z"/><path d="M12 13.4V20"/><path d="M8 21c1-.9 7-.9 8 0"/>',
   leaf: '<path d="M11 20A7 7 0 0 1 4 13c0-6 7-10 16-10 0 9-4 16-10 16Z"/><path d="M4 21c3-5 6-8 11-11"/>',
   'trending-up': '<path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/>',
+  // Kalender mit Häkchen (nach Lucide „calendar-check“, ISC-Lizenz)
+  'calendar-check': '<rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/>',
   // Eistüte (nach Lucide „ice-cream-cone“, ISC-Lizenz)
   'ice-cream': '<path d="m7 11 4.08 10.35a1 1 0 0 0 1.84 0L17 11"/><path d="M17 7A5 5 0 0 0 7 7"/><path d="M17 7a2 2 0 0 1 0 4H7a2 2 0 0 1 0-4"/>',
   route: '<circle cx="6" cy="19" r="3"/><circle cx="18" cy="5" r="3"/><path d="M9 19h8.5a3.5 3.5 0 0 0 0-7h-11a3.5 3.5 0 0 1 0-7H15"/>',
