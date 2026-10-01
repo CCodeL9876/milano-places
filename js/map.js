@@ -1,4 +1,4 @@
-// Leaflet-Karte: Orts-Marker, Airbnb-Marker und Radius-Kreis.
+// Leaflet-Karte: Orts-Marker, Airbnb-Marker, Radius-Kreis und Live-Standort.
 /* global L */
 
 import { hasCoords, formatKm, formatReservation } from './geo.js';
@@ -45,7 +45,7 @@ function createFallbackMap(el) {
   return { map: fakeMap, setPlaces: noop, setAirbnb: noop, setActive: noop, focusPlace: noop, fitTo: noop, centerOn: noop, invalidate: noop };
 }
 
-export function createMap(el, { onMapClick, onMarkerClick, getInsets }) {
+export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMessage }) {
   if (typeof L === 'undefined') return createFallbackMap(el);
   const map = L.map(el, { zoomControl: false, attributionControl: true }).setView(CITY.center, CITY.zoom);
   L.control.zoom({ position: 'bottomright' }).addTo(map);
@@ -72,6 +72,112 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets }) {
     if (animate) map.flyTo(target, zoom, { duration: 0.6 });
     else map.setView(target, zoom);
   }
+
+  // --- Live-Standort --------------------------------------------------------------------------
+  // Knopf über den Zoom-Knöpfen. 1. Tipp: Standort verfolgen, die Karte läuft beim Gehen mit.
+  // Verschiebt man die Karte selbst, hört das Mitlaufen auf; ein Tipp springt dann zurück und
+  // läuft wieder mit. Tipp, wenn der Standort schon in der Mitte ist: ausschalten.
+  // Die Position bleibt im Browser – sie wird weder gespeichert noch an die Datenbank geschickt.
+  let locating = false;
+  let firstFix = false;
+  let following = false;
+  let meLatLng = null;
+  let meMarker = null;
+  let meCircle = null;
+  let locateBtn = null;
+
+  const setLocateState = (state) => {
+    if (!locateBtn) return;
+    locateBtn.classList.toggle('is-waiting', state === 'waiting');
+    locateBtn.setAttribute('aria-pressed', String(state !== 'off'));
+    locateBtn.title = state === 'off' ? 'Mein Standort' : 'Standort: nochmals tippen zum Zentrieren bzw. Ausschalten';
+  };
+
+  function stopLocate() {
+    locating = false;
+    following = false;
+    meLatLng = null;
+    map.stopLocate();
+    meMarker?.remove();
+    meCircle?.remove();
+    meMarker = meCircle = null;
+    setLocateState('off');
+  }
+
+  function meIsCentered() {
+    if (!meLatLng) return false;
+    const { top, right, bottom, left } = insets();
+    const size = map.getSize();
+    const mid = L.point((left + size.x - right) / 2, (top + size.y - bottom) / 2);
+    return map.latLngToContainerPoint(meLatLng).distanceTo(mid) < 40;
+  }
+
+  function toggleLocate() {
+    if (!locating) {
+      if (!navigator.geolocation) return onLocateMessage?.('Dieser Browser kann den Standort nicht bestimmen.');
+      locating = true;
+      firstFix = true;
+      setLocateState('waiting');
+      map.locate({ watch: true, enableHighAccuracy: true, setView: false, maximumAge: 10000, timeout: 20000 });
+      return;
+    }
+    if (meLatLng && (!following || !meIsCentered())) {
+      following = true;
+      return centerOn(meLatLng, Math.max(map.getZoom(), 16));
+    }
+    stopLocate();
+  }
+
+  map.on('locationfound', (e) => {
+    if (!locating) return;
+    meLatLng = e.latlng;
+    if (!meMarker) {
+      meCircle = L.circle(e.latlng, { radius: e.accuracy, className: 'me-accuracy', interactive: false }).addTo(map);
+      meMarker = L.marker(e.latlng, {
+        icon: L.divIcon({ className: '', html: '<div class="me-dot"></div>', iconSize: [22, 22], iconAnchor: [11, 11] }),
+        interactive: false, keyboard: false, zIndexOffset: 2000,
+      }).addTo(map);
+    } else {
+      meMarker.setLatLng(e.latlng);
+      meCircle.setLatLng(e.latlng).setRadius(e.accuracy);
+    }
+    if (firstFix) {
+      firstFix = false;
+      following = true;
+      setLocateState('on');
+      centerOn(e.latlng, Math.max(map.getZoom(), 16));
+    } else if (following && !meIsCentered()) {
+      centerOn(e.latlng, map.getZoom());
+    }
+  });
+  // Selbst verschoben → nicht mehr mitlaufen (bis zum nächsten Tipp auf den Knopf)
+  map.on('dragstart', () => { following = false; });
+
+  map.on('locationerror', (e) => {
+    if (!locating) return;
+    // Bei laufender Verfolgung kurze Aussetzer (z. B. im Tunnel) ignorieren – nur beim Start melden
+    if (!firstFix && meLatLng && e.code !== 1) return;
+    stopLocate();
+    onLocateMessage?.(e.code === 1
+      ? 'Standort nicht erlaubt. Auf dem iPhone: Einstellungen → Datenschutz → Ortungsdienste → Safari-Websites → „Beim Verwenden“.'
+      : 'Standort konnte nicht bestimmt werden. Bitte später noch einmal versuchen.');
+  });
+
+  const LocateControl = L.Control.extend({
+    options: { position: 'bottomright' },
+    onAdd() {
+      locateBtn = L.DomUtil.create('button', 'locate-btn');
+      locateBtn.type = 'button';
+      locateBtn.setAttribute('aria-label', 'Mein Standort');
+      locateBtn.innerHTML = icon('locate', { size: 20, stroke: 2.2 });
+      setLocateState('off');
+      L.DomEvent.disableClickPropagation(locateBtn);
+      L.DomEvent.on(locateBtn, 'click', toggleLocate);
+      return locateBtn;
+    },
+  });
+  // Unten rechts stapelt Leaflet neue Knöpfe über die bestehenden: Standort liegt also über dem Zoom
+  new LocateControl().addTo(map);
 
   function fitPoints(pts, maxZoom) {
     const { top, right, bottom, left } = insets();

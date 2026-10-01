@@ -147,6 +147,7 @@ const mapOptions = {
     return true;
   },
   onMarkerClick: (id) => selectPlace(id, { fly: false, scrollList: true }),
+  onLocateMessage: (msg) => toast(msg),
   getInsets: mapInsets,
 };
 

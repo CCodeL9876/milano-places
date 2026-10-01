@@ -678,6 +678,31 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .leaflet-control-attribution a { color: var(--accent-ink) !important; }
 .leaflet-container .leaflet-control-zoom { margin: 0 16px 16px 0; }
 
+/* Live-Standort: Knopf über dem Zoom, blauer Punkt mit Genauigkeitskreis */
+.locate-btn {
+  display: grid; place-items: center; width: 46px; height: 46px; padding: 0;
+  margin: 0 16px 12px 0 !important;
+  background: var(--card); color: var(--ink); cursor: pointer;
+  border: 2px solid var(--edge); border-radius: var(--radius); box-shadow: var(--pop);
+}
+.locate-btn:hover { background: var(--yellow-tint); }
+.locate-btn:active { transform: translate(2px, 2px); box-shadow: 1px 1px 0 var(--edge); }
+.locate-btn[aria-pressed="true"] { background: var(--blue); color: #FFFFFF; }
+.locate-btn.is-waiting .icon { animation: locate-spin 1.2s linear infinite; }
+@keyframes locate-spin { to { transform: rotate(360deg); } }
+.me-dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  background: var(--blue); border: 3px solid #FFFFFF;
+  box-shadow: 0 0 0 2px var(--edge), 0 0 0 0 rgba(46, 74, 216, 0.45);
+  animation: me-pulse 2s ease-out infinite;
+}
+@keyframes me-pulse {
+  0% { box-shadow: 0 0 0 2px var(--edge), 0 0 0 0 rgba(46, 74, 216, 0.45); }
+  70% { box-shadow: 0 0 0 2px var(--edge), 0 0 0 16px rgba(46, 74, 216, 0); }
+  100% { box-shadow: 0 0 0 2px var(--edge), 0 0 0 0 rgba(46, 74, 216, 0); }
+}
+.me-accuracy { fill: var(--blue); fill-opacity: 0.12; stroke: var(--blue); stroke-width: 1.5; stroke-opacity: 0.6; }
+
 .pick-banner {
   position: absolute; left: 50%; top: 24px; transform: translateX(-50%);
   z-index: 1000;
@@ -995,6 +1020,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   /* Zoom-Knöpfe und Quellenangabe über dem Blatt statt darunter */
   .leaflet-bottom { bottom: var(--sheet-h); transition: bottom 0.25s ease; }
   .leaflet-container .leaflet-control-zoom { margin: 0 10px 10px 0; }
+  .locate-btn { margin: 0 10px 10px 0 !important; }
   .pick-banner { top: auto; bottom: calc(var(--sheet-h) + 12px); font-size: 13px; }
   .gmap-tools { right: 10px; bottom: calc(var(--sheet-h) + 12px); transition: bottom 0.25s ease; }
 
