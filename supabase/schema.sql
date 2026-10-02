@@ -31,6 +31,8 @@ alter table public.places add column if not exists gluten_free boolean not null 
 alter table public.places add column if not exists reservation jsonb;
 -- Nachträglich ergänzt: Ort besucht (gilt für die ganze Reise); bewusst ohne „not null“
 alter table public.places add column if not exists visited boolean default false;
+-- Nachträglich ergänzt: Favorit (Stern), gilt für die ganze Reise; bewusst ohne „not null“
+alter table public.places add column if not exists starred boolean default false;
 
 -- Routen (z. B. GPX-Rennradstrecken): eigene Tabelle statt lat/lng, weil eine Route aus
 -- vielen aneinandergereihten Punkten besteht (points), nicht aus einem einzelnen Ort.

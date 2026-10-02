@@ -446,6 +446,10 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .chip.is-empty:not([aria-pressed="true"]) { opacity: 0.5; }
 /* Filter „Reserviert“: gelb wie das Reservierungs-Etikett, etwas abgesetzt von den Kategorien */
 .chip-reserved { --c: var(--yellow); }
+.chip-starred { --c: var(--yellow); }
+.chip-starred::before { border-style: dashed; }
+.chip-starred[aria-pressed="true"]::before { border-style: solid; }
+.chip-starred[aria-pressed="true"] .chip-icon path { fill: var(--card); }
 .chip-reserved::before { border-style: dashed; }
 .chip-reserved[aria-pressed="true"]::before { border-style: solid; }
 
@@ -507,6 +511,8 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 }
 .gmap-tools button[aria-pressed="true"] { background: var(--ink); color: var(--yellow); }
 
+.popup-star { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: 4px; font-size: 12px; font-weight: 800; color: var(--ink); background: var(--yellow); border: 1.5px solid var(--edge); border-radius: 999px; padding: 1px 7px 1px 5px; }
+.popup-star .icon path { fill: var(--card); }
 .popup-visited { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: 4px; font-size: 12px; font-weight: 800; color: var(--ink); background: var(--mint); border: 1.5px solid var(--edge); border-radius: 999px; padding: 1px 7px 1px 5px; }
 .popup-res { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; margin-top: 4px; font-size: 12px; font-weight: 800; color: var(--ink); background: var(--yellow); border: 1.5px solid var(--edge); border-radius: 999px; padding: 1px 7px 1px 5px; }
 .popup-gf { display: inline-flex; align-items: center; gap: 4px; align-self: flex-start; font-size: 12px; font-weight: 800; color: var(--ink); background: var(--mint); border: 1.5px solid var(--edge); border-radius: 999px; padding: 1px 7px 1px 5px; }
@@ -551,6 +557,18 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .place-body { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 1px; }
 .place-name { font-family: var(--font-display); font-weight: 800; font-size: 16px; letter-spacing: -0.01em; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .place-meta { font-size: 12.5px; color: var(--muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+/* Favorit: Stern rechts in der Zeile – aus = blass umrandet, an = gelb gefüllt */
+.star-toggle {
+  flex: none; display: grid; place-items: center; width: 32px; height: 32px; padding: 0;
+  border: 0; border-radius: 50%; background: none; color: #B3AAB8; cursor: pointer;
+  transition: color 0.15s, transform 0.15s;
+}
+.star-toggle:hover { color: var(--muted); }
+.star-toggle[aria-pressed="true"] { color: var(--ink); }
+.star-toggle[aria-pressed="true"] .icon path { fill: var(--yellow); }
+.star-toggle:active { transform: scale(0.88); }
+.place.is-visited:not(.is-active) .star-toggle:not([aria-pressed="true"]) { opacity: 0.45; }
+
 /* Besucht: runder Haken links; besuchte Orte blass (beim Aufklappen wieder voll sichtbar) */
 .visit-toggle {
   flex: none; display: grid; place-items: center;
@@ -653,6 +671,13 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 /* Reserviert: kleines gelbes Kalender-Abzeichen oben rechts am Marker */
 .pin { position: relative; }
 .pin.is-visited:not(.is-active) { opacity: 0.45; }
+/* Favorit: gelber Stern oben links am Marker */
+.pin-star {
+  position: absolute; top: -9px; left: -9px; display: grid; place-items: center;
+  color: var(--ink); line-height: 0; pointer-events: none;
+}
+.pin-star .icon { width: 17px; height: 17px; }
+.pin-star .icon path { fill: var(--yellow); }
 .pin.is-reserved::after {
   content: ''; position: absolute; top: -6px; right: -6px; width: 12px; height: 12px;
   border-radius: 50%; background: var(--yellow); border: 2px solid var(--edge);
@@ -1092,6 +1117,10 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   /* Fingergerechte Tippflächen (mind. ~40px) für die kleinen Knöpfe in der Ortsliste */
   .gf-toggle { min-width: 40px; height: 40px; margin-right: 2px; }
   .visit-toggle { width: 32px; height: 32px; margin-left: 4px; }
+  .star-toggle { width: 36px; height: 40px; }
+  /* Volle Zeile (Haken, Symbol, Distanz, Stern, GF): Namen dürfen auf zwei Zeilen umbrechen statt abgeschnitten zu werden */
+  .place-name { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.2; }
+  .place-main { gap: 10px; }
   .list-more { padding: 12px; font-size: 14px; }
 
   /* Reise/Unterkunft: zwei kleine Boxen nebeneinander oben über der Karte; eine aufgeklappte Box

@@ -281,7 +281,7 @@ function filterBase(places) {
   const q = norm(state.ui.search.trim());
   if (!q) return places;
   return places.filter((p) =>
-    norm(`${p.name} ${p.address} ${p.note} ${p.listName} ${p.addedBy || ''} ${catOf(p.category).label} ${p.reservation ? 'reserviert' : ''}`).includes(q));
+    norm(`${p.name} ${p.address} ${p.note} ${p.listName} ${p.addedBy || ''} ${catOf(p.category).label} ${p.reservation ? 'reserviert' : ''} ${p.starred ? 'favorit' : ''}`).includes(q));
 }
 
 // Nächster Termin zuerst; Reservierungen ohne Datum/Uhrzeit ans Ende, darunter nach Name
@@ -313,7 +313,9 @@ function render({ fit = false } = {}) {
   const selected = new Set(state.ui.categories);
   // Filter „Reserviert“ lässt sich mit den Kategorien kombinieren und sortiert nach Termin statt nach Entfernung
   if (state.ui.reserved && !state.places.some((p) => p.reservation)) state.ui.reserved = false;
-  const pool = state.ui.reserved ? base.filter((p) => p.reservation) : base;
+  if (state.ui.starred && !state.places.some((p) => p.starred)) state.ui.starred = false;
+  // „Reserviert“ und „Favoriten“ lassen sich kombinieren (beides muss zutreffen)
+  const pool = base.filter((p) => (!state.ui.reserved || p.reservation) && (!state.ui.starred || p.starred));
   const filtered = selected.size ? pool.filter((p) => selected.has(p.category)) : pool;
   const visible = state.ui.reserved ? sortByReservation(filtered) : sortPlaces(filtered);
   lastVisible = visible;
@@ -384,6 +386,13 @@ function renderChips(base, pool) {
 
   // „Reserviert“ erscheint, sobald mindestens ein Ort reserviert ist
   const reservedCount = base.filter((p) => p.reservation).length;
+  // „Favoriten“ ebenso, sobald mindestens ein Ort einen Stern hat
+  const starredCount = base.filter((p) => p.starred).length;
+  const starredChip = starredCount || state.ui.starred
+    ? `<button type="button" class="chip chip-starred" data-filter="starred" aria-pressed="${!!state.ui.starred}">
+        <span class="chip-icon">${icon('star', { size: 15, stroke: 2 })}</span>Favoriten<span class="chip-count">${starredCount}</span>
+      </button>`
+    : '';
   const reservedChip = reservedCount || state.ui.reserved
     ? `<button type="button" class="chip chip-reserved" data-filter="reserved" aria-pressed="${!!state.ui.reserved}">
         <span class="chip-icon">${icon('calendar-check', { size: 15, stroke: 2 })}</span>Reserviert<span class="chip-count">${reservedCount}</span>
@@ -392,7 +401,7 @@ function renderChips(base, pool) {
 
   $('#category-chips').innerHTML =
     `<button type="button" class="chip chip-all" data-cat="" aria-pressed="${!selected.size}">Alle<span class="chip-count">${pool.length}</span></button>` +
-    reservedChip + chips.join('');
+    starredChip + reservedChip + chips.join('');
 }
 
 // Startansicht: nur die ersten PLACES_PREVIEW Orte, der Rest ist über „Alle … anzeigen“ aufklappbar.
@@ -474,6 +483,7 @@ function renderList(visible, total) {
         </span>
         ${dist}
       </button>
+      <button type="button" class="star-toggle" data-action="starred" aria-pressed="${!!p.starred}" aria-label="${escapeHtml(p.name)} als Favorit" title="${p.starred ? 'Favorit – antippen zum Entfernen' : 'Als Favorit markieren'}">${icon('star', { size: 18, stroke: 2 })}</button>
       <button type="button" class="gf-toggle" data-action="gluten-free" aria-pressed="${gf}" aria-label="Glutenfrei" title="${gf ? 'Glutenfrei – antippen zum Entfernen' : 'Als glutenfrei markieren'}">${icon('wheat-off', { size: 17, stroke: 1.9 })}<span class="gf-label">GF</span></button>
       </div>
       <div class="place-details">
@@ -671,6 +681,11 @@ $('#sort').addEventListener('change', (e) => {
 $('#category-chips').addEventListener('click', (e) => {
   const chip = e.target.closest('.chip');
   if (!chip) return;
+  if (chip.dataset.filter === 'starred') {
+    state.ui.starred = !state.ui.starred;
+    render();
+    return;
+  }
   if (chip.dataset.filter === 'reserved') {
     state.ui.reserved = !state.ui.reserved;
     render();
@@ -689,6 +704,7 @@ $('#category-chips').addEventListener('click', (e) => {
 function resetFilters() {
   state.ui.categories = [];
   state.ui.reserved = false;
+  state.ui.starred = false;
   state.ui.search = '';
   $('#search').value = '';
   render({ fit: true });
@@ -989,6 +1005,18 @@ $('#place-list').addEventListener('click', async (e) => {
     }
     toast(place.glutenFree ? `„${place.name}“ als glutenfrei markiert` : `Glutenfrei-Markierung entfernt`);
   }
+  if (action === 'starred') {
+    place.starred = !place.starred;
+    render();
+    const ok = await persist((b) => b.updatePlace(id, { starred: place.starred }),
+      'Favorit konnte nicht gespeichert werden (Spalte „starred“ in Supabase angelegt?)');
+    if (!ok) {
+      place.starred = !place.starred;
+      render();
+      return;
+    }
+    toast(place.starred ? `„${place.name}“ als Favorit markiert` : 'Favorit entfernt');
+  }
   if (action === 'visited') {
     place.visited = !place.visited;
     render();
@@ -1109,6 +1137,7 @@ async function addPlaces(raws, override = 'auto') {
       addedAt: raw.addedAt || Date.now(),
       ...(raw.glutenFree ? { glutenFree: true } : {}),
       ...(raw.visited ? { visited: true } : {}),
+      ...(raw.starred ? { starred: true } : {}),
       ...(cleanReservation(raw.reservation) ? { reservation: cleanReservation(raw.reservation) } : {}),
     };
     if ((place.url && urls.has(place.url)) || keys.has(coordKey(place))) {

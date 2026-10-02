@@ -21,6 +21,14 @@ export const escapeHtml = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
 
 // Popup-Inhalte – gemeinsam für die OpenStreetMap-Karte (hier) und die Google-Test-Variante (map-google.js)
+// Marker-Merkmale eines Orts; Favoriten bekommen zusätzlich einen gelben Stern oben links
+export const pinFlags = (p) => ({ reserved: !!p.reservation, visited: !!p.visited, starred: !!p.starred });
+export function pinHtml(cat, active, { reserved, visited, starred } = {}) {
+  const cls = `pin${active ? ' is-active' : ''}${reserved ? ' is-reserved' : ''}${visited ? ' is-visited' : ''}${starred ? ' is-starred' : ''}`;
+  const star = starred ? `<span class="pin-star" aria-hidden="true">${icon('star', { size: 15, stroke: 2.2 })}</span>` : '';
+  return `<div class="${cls}" style="${categoryStyle(cat)}">${categoryIcon(cat, { size: 14, stroke: 2.3 })}${star}</div>`;
+}
+
 export function airbnbPopupHtml(airbnb) {
   return `
     <div class="popup">
@@ -37,6 +45,7 @@ export function popupHtml(p, cat) {
       <span class="popup-cat" style="${categoryStyle(cat)}">${escapeHtml(cat.label)}</span>
       <strong class="popup-name">${escapeHtml(p.name)}</strong>
       ${p.address ? `<span class="popup-addr">${escapeHtml(p.address)}</span>` : ''}
+      ${p.starred ? `<span class="popup-star">${icon('star', { size: 13, stroke: 2.2 })} Favorit</span>` : ''}
       ${p.visited ? `<span class="popup-visited">${icon('check', { size: 13, stroke: 2.6 })} Besucht</span>` : ''}
       ${p.reservation ? `<span class="popup-res">${icon('calendar-check', { size: 13, stroke: 2 })} ${escapeHtml(formatReservation(p.reservation))}</span>` : ''}
       ${p.glutenFree ? `<span class="popup-gf">${icon('wheat-off', { size: 13, stroke: 2 })} Glutenfrei</span>` : ''}
@@ -289,10 +298,11 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     });
   }
 
-  function placeIcon(cat, active, reserved, visited) {
+  // flags: { reserved, visited, starred } – siehe pinFlags
+  function placeIcon(cat, active, flags = {}) {
     return L.divIcon({
       className: '',
-      html: `<div class="pin${active ? ' is-active' : ''}${reserved ? ' is-reserved' : ''}${visited ? ' is-visited' : ''}" style="${categoryStyle(cat)}">${categoryIcon(cat, { size: 14, stroke: 2.3 })}</div>`,
+      html: pinHtml(cat, active, flags),
       iconSize: [30, 30],
       iconAnchor: [15, 15],
       popupAnchor: [0, -20],
@@ -308,15 +318,15 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
       if (!hasCoords(p)) continue;
       const cat = catOf(p.category);
       const m = L.marker([p.lat, p.lng], {
-        icon: placeIcon(cat, p.id === currentId, !!p.reservation, !!p.visited),
+        icon: placeIcon(cat, p.id === currentId, pinFlags(p)),
         title: p.name,
-        zIndexOffset: p.id === currentId ? 1000 : 0,
+        zIndexOffset: p.id === currentId ? 1000 : p.starred ? 500 : 0, // Favoriten über den anderen
         riseOnHover: true,
       });
       m.bindPopup(popupHtml(p, cat), { closeButton: false, className: 'llocs-popup' });
       m.on('click', () => onMarkerClick?.(p.id));
       m.addTo(placeLayer);
-      markers.set(p.id, { marker: m, cat, reserved: !!p.reservation, visited: !!p.visited });
+      markers.set(p.id, { marker: m, cat, flags: pinFlags(p) });
     }
   }
 
@@ -346,8 +356,8 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
       const entry = markers.get(key);
       if (!entry) continue;
       const on = key === id;
-      entry.marker.setIcon(placeIcon(entry.cat, on, entry.reserved, entry.visited));
-      entry.marker.setZIndexOffset(on ? 1000 : 0);
+      entry.marker.setIcon(placeIcon(entry.cat, on, entry.flags));
+      entry.marker.setZIndexOffset(on ? 1000 : entry.flags.starred ? 500 : 0);
     }
     activeId = id;
   }

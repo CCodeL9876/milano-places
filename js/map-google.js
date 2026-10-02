@@ -6,7 +6,7 @@
 
 import { hasCoords } from './geo.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
-import { CITY, popupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl } from './map.js';
+import { CITY, popupHtml, airbnbPopupHtml, escapeHtml, safeHttpUrl, pinHtml, pinFlags } from './map.js';
 
 const LOAD_TIMEOUT_MS = 12000;
 
@@ -211,10 +211,10 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
   }
 
   // --- Eigene Orte --------------------------------------------------------------------------------
-  function pinElement(cat, active, reserved, visited) {
+  function pinElement(cat, active, flags) {
     const wrap = document.createElement('div');
     wrap.className = 'gpin';
-    wrap.innerHTML = `<div class="pin${active ? ' is-active' : ''}${reserved ? ' is-reserved' : ''}${visited ? ' is-visited' : ''}" style="${categoryStyle(cat)}">${categoryIcon(cat, { size: 14, stroke: 2.3 })}</div>`;
+    wrap.innerHTML = pinHtml(cat, active, flags);
     return wrap;
   }
 
@@ -235,9 +235,9 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       const marker = new AdvancedMarkerElement({
         map,
         position: { lat: p.lat, lng: p.lng },
-        content: pinElement(cat, p.id === currentId, !!p.reservation, !!p.visited),
+        content: pinElement(cat, p.id === currentId, pinFlags(p)),
         title: p.name,
-        zIndex: p.id === currentId ? 1000 : 1,
+        zIndex: p.id === currentId ? 1000 : p.starred ? 500 : 1,
       });
       marker.addListener('click', () => {
         openPlacePopup(p.id);
@@ -253,7 +253,7 @@ export async function createGoogleMap(el, { apiKey, mapId, onMapClick, onMarkerC
       if (!entry) continue;
       const on = key === id;
       entry.marker.content.querySelector('.pin')?.classList.toggle('is-active', on);
-      entry.marker.zIndex = on ? 1000 : 1;
+      entry.marker.zIndex = on ? 1000 : entry.place.starred ? 500 : 1;
     }
     activeId = id;
   }

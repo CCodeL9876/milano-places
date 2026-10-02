@@ -50,7 +50,7 @@ export class LocalBackend {
 
 // --- Supabase ------------------------------------------------------------------------
 
-const PATCH_COLUMNS = { name: 'name', address: 'address', lat: 'lat', lng: 'lng', url: 'url', note: 'note', category: 'category', listName: 'list_name', glutenFree: 'gluten_free', reservation: 'reservation', visited: 'visited' };
+const PATCH_COLUMNS = { name: 'name', address: 'address', lat: 'lat', lng: 'lng', url: 'url', note: 'note', category: 'category', listName: 'list_name', glutenFree: 'gluten_free', reservation: 'reservation', visited: 'visited', starred: 'starred' };
 
 const toRow = (p, key) => ({
   id: p.id,
@@ -72,6 +72,7 @@ const toRow = (p, key) => ({
   ...(p.reservation ? { reservation: p.reservation } : {}),
   // nur wenn besucht – die Spalte ist bewusst ohne „not null“, fehlende Werte gelten als nicht besucht
   ...(p.visited ? { visited: true } : {}),
+  ...(p.starred ? { starred: true } : {}),
 });
 
 const fromRow = (r) => ({
@@ -86,6 +87,7 @@ const fromRow = (r) => ({
   category: r.category,
   glutenFree: r.gluten_free === true,
   visited: r.visited === true,
+  starred: r.starred === true,
   reservation: r.reservation && typeof r.reservation === 'object' ? r.reservation : null,
   addedBy: r.added_by || '',
   addedAt: Date.parse(r.created_at) || 0,
