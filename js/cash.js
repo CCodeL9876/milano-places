@@ -63,17 +63,18 @@ export function parseAmount(input) {
   return cents > 0 && cents <= 100000000 ? cents : null;
 }
 
-// Gleichmässig aufteilen; übrige Cent gehen der Reihe nach an die ersten Personen,
-// damit die Summe der Anteile immer genau dem Betrag entspricht.
-export function splitCents(amountCents, ids) {
+// Gleichmässig aufteilen, sodass die Summe der Anteile immer genau dem Betrag entspricht. Übrige Cent
+// (z. B. 10,01 € für 3) gehen reihum an einzelne Personen; wo die Reihe beginnt, hängt von der Rechnung
+// ab (seed = Rechnungs-ID) – sonst trüge immer dieselbe Person den Extra-Cent.
+const seedOffset = (seed, n) => [...String(seed)].reduce((h, c) => (h * 31 + c.charCodeAt(0)) >>> 0, 0) % n;
+export function splitCents(amountCents, ids, seed = '') {
   const shares = new Map();
-  if (!ids.length) return shares;
-  const base = Math.floor(amountCents / ids.length);
-  let rest = amountCents - base * ids.length;
-  for (const id of ids) {
-    shares.set(id, base + (rest > 0 ? 1 : 0));
-    if (rest > 0) rest--;
-  }
+  const n = ids.length;
+  if (!n) return shares;
+  const base = Math.floor(amountCents / n);
+  const rest = amountCents - base * n;
+  const start = rest ? seedOffset(seed, n) : 0;
+  ids.forEach((id, i) => shares.set(id, base + (((i - start + n) % n) < rest ? 1 : 0)));
   return shares;
 }
 
@@ -87,7 +88,7 @@ export function computeBalances(expenses, participants) {
   };
   for (const e of expenses) {
     row(e.paidBy).paid += e.amountCents;
-    for (const [id, cents] of splitCents(e.amountCents, e.sharedWith)) row(id).share += cents;
+    for (const [id, cents] of splitCents(e.amountCents, e.sharedWith, e.id)) row(id).share += cents;
   }
   return [...rows.values()].map((r) => ({ ...r, balance: r.paid - r.share }));
 }

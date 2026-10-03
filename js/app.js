@@ -98,16 +98,24 @@ async function persist(op, failMsg = 'Änderung konnte nicht gespeichert werden'
     return false;
   }
   pendingWrites++;
+  let failed = false;
   try {
     await op(backend);
     lastSync = new Date();
     return true;
   } catch (err) {
     toast(`${failMsg}: ${err.message}`);
-    if (backend.kind === 'shared') await refresh();
+    failed = true;
     return false;
   } finally {
     pendingWrites--;
+    // Erst nach dem Herunterzählen neu laden – vorher bricht refresh() wegen des laufenden Schreibvorgangs ab.
+    // Signatur leeren, damit der Serverstand auch dann übernommen wird, wenn er sich nicht geändert hat.
+    // Läuft absichtlich ohne await: Die Aufrufer setzen ihre Änderung zuerst zurück, danach gilt der Server.
+    if (failed && backend.kind === 'shared') {
+      lastSignature = '';
+      refresh();
+    }
   }
 }
 
@@ -729,6 +737,7 @@ const personName = (id) => state.participants.find((p) => p.id === id)?.name || 
 const cashBlocked = () => backend.kind === 'shared' && state.cashMissing;
 // Ausgleich in Franken: Tageskurs (siehe loadRate) und Klappzustand, der beim Neuzeichnen erhalten bleibt
 let fx = cachedRate();
+let fxLoading = false;
 let cashSettleOpen = false;
 const longDate = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${Number(m[3])}.${Number(m[2])}.${m[1]}` : iso; };
 
@@ -831,8 +840,8 @@ function renderCashSummary() {
             </li>`).join('')}</ul>`
           : '<p class="hint">Alles ausgeglichen – niemand schuldet jemandem etwas.</p>'}
         <p class="hint cash-fx">${fx
-          ? `In Franken zum EZB-Referenzkurs vom ${longDate(fx.date)}: 1 € = ${fx.rate.toFixed(4)} CHF.${fx.fetched !== todayIso() ? ' Gerade kein Internet – letzter bekannter Kurs.' : ''} Mit € den Euro-Betrag anzeigen.`
-          : 'Wechselkurs gerade nicht abrufbar – Beträge in Euro.'}</p>
+          ? `In Franken zum EZB-Referenzkurs vom ${longDate(fx.date)}: 1 € = ${fx.rate.toFixed(4)} CHF.${fx.fetched === todayIso() ? '' : fxLoading ? ' Tageskurs wird aktualisiert …' : ' Gerade kein Internet – letzter bekannter Kurs.'} Mit € den Euro-Betrag anzeigen.`
+          : fxLoading ? 'Wechselkurs wird geladen …' : 'Wechselkurs gerade nicht abrufbar – Beträge in Euro.'}</p>
       </div>
     </details>`;
 }
@@ -872,9 +881,10 @@ function openCash() {
   resetCashForm();
   cashSettleOpen = false;
   // Tageskurs holen (höchstens einmal pro Tag), danach die Abrechnung in Franken neu zeichnen
+  fxLoading = fx?.fetched !== todayIso();
   loadRate().then((v) => {
-    if (!v || (fx && v.rate === fx.rate && v.date === fx.date && v.fetched === fx.fetched)) return;
-    fx = v;
+    fxLoading = false;
+    if (v) fx = v;
     if (cashDialog.open) renderCashSummary();
   });
   $('#cash-people-fold').open = !state.participants.length;
@@ -899,9 +909,16 @@ $('#cash-person-form').addEventListener('submit', async (e) => {
   if (!cashForm.payer) cashForm.payer = person.id;
   input.value = '';
   render();
-  const ok = await persist((b) => b.saveParticipants(state.participants), 'Person konnte nicht gespeichert werden');
+  let merged = null;
+  const ok = await persist(async (b) => { merged = await b.changeParticipants({ add: person }); }, 'Person konnte nicht gespeichert werden');
   if (!ok) {
     state.participants = state.participants.filter((p) => p.id !== person.id);
+    render();
+    return;
+  }
+  // Gemeinsame Reise: Liste vom Server übernehmen (enthält auch gleichzeitig hinzugefügte Personen)
+  if (merged) {
+    state.participants = sanitizeParticipants(merged);
     render();
   }
 });
@@ -930,11 +947,20 @@ cashDialog.addEventListener('click', async (e) => {
       return toast(`„${person.name}“ kommt in Rechnungen vor – zuerst diese Rechnungen ändern oder löschen.`);
     }
     if (!confirm(`„${person.name}“ aus der Kasse entfernen?`)) return;
-    const before = state.participants;
+    const index = state.participants.findIndex((p) => p.id === person.id);
     state.participants = state.participants.filter((p) => p.id !== person.id);
     render();
-    const ok = await persist((b) => b.saveParticipants(state.participants), 'Person konnte nicht entfernt werden');
-    if (!ok) { state.participants = before; render(); }
+    let merged = null;
+    const ok = await persist(async (b) => { merged = await b.changeParticipants({ removeId: person.id }); }, `„${person.name}“ konnte nicht entfernt werden`);
+    if (!ok) {
+      if (!state.participants.some((p) => p.id === person.id)) state.participants.splice(Math.max(0, index), 0, person);
+      render();
+      return;
+    }
+    if (merged) {
+      state.participants = sanitizeParticipants(merged);
+      render();
+    }
     return;
   }
   if (btn.dataset.payer) {
@@ -983,7 +1009,7 @@ cashDialog.addEventListener('click', async (e) => {
     if (cashForm.editingId === exp.id) resetCashForm();
     render();
     const ok = await persist((b) => b.deleteExpense(exp.id), 'Rechnung konnte nicht gelöscht werden');
-    if (!ok) { state.expenses.push(exp); render(); return; }
+    if (!ok) { if (!state.expenses.some((x) => x.id === exp.id)) state.expenses.push(exp); render(); return; }
     toast('Rechnung gelöscht');
   }
 });
@@ -1010,6 +1036,16 @@ $('#cash-form').addEventListener('submit', async (e) => {
     date: $('#cash-date').value || '',
   };
   const editing = state.expenses.find((x) => x.id === cashForm.editingId);
+  if (cashForm.editingId && !editing) {
+    // Inzwischen von jemand anderem gelöscht – nicht stillschweigend als neue Rechnung anlegen
+    error.textContent = 'Diese Rechnung wurde inzwischen gelöscht. Bitte bei Bedarf neu erfassen.';
+    cashForm.editingId = null;
+    $('#cash-form-title').textContent = 'Rechnung erfassen';
+    $('#cash-submit').textContent = 'Rechnung speichern';
+    $('#cash-cancel').hidden = true;
+    renderCashDialog();
+    return;
+  }
   if (editing) {
     const before = { ...editing };
     Object.assign(editing, data);

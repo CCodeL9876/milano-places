@@ -43,6 +43,7 @@ export class LocalBackend {
   async deleteAllPlaces() { this.#save(); }
   async saveSettings() { this.#save(); }
   async saveParticipants() { this.#save(); }
+  async changeParticipants() { this.#save(); return null; }
   async addExpenses() { this.#save(); }
   async updateExpense() { this.#save(); }
   async deleteExpense() { this.#save(); }
@@ -181,7 +182,30 @@ export class SharedBackend {
     check(await this.db.from('places').delete().eq('trip_key', this.key));
   }
 
-  // Nur die Spalte participants – Unterkunft und Kategorien bleiben unberührt
+  // Eine Person hinzufügen oder entfernen, ohne gleichzeitige Änderungen anderer zu überschreiben:
+  // aktuelle Liste aus der Datenbank lesen, nur die eigene Änderung anwenden, zurückschreiben.
+  // Beim Entfernen wird geprüft, ob die Person (auch in Rechnungen anderer) noch vorkommt.
+  // Rückgabe: die neue Liste vom Server.
+  async changeParticipants({ add = null, removeId = null }) {
+    if (removeId) {
+      const [paid, shared] = await Promise.all([
+        this.db.from('expenses').select('id', { count: 'exact', head: true }).eq('trip_key', this.key).eq('paid_by', removeId),
+        this.db.from('expenses').select('id', { count: 'exact', head: true }).eq('trip_key', this.key).contains('shared_with', JSON.stringify([removeId])), // jsonb: als JSON-Liste übergeben
+      ]);
+      check(paid);
+      check(shared);
+      if (paid.count || shared.count) throw new Error('die Person kommt in Rechnungen vor');
+    }
+    const current = await this.db.from('trip_settings').select('participants').eq('trip_key', this.key).maybeSingle();
+    check(current);
+    let list = Array.isArray(current.data?.participants) ? current.data.participants : [];
+    if (add && !list.some((p) => p.id === add.id)) list = [...list, add];
+    if (removeId) list = list.filter((p) => p.id !== removeId);
+    await this.saveParticipants(list);
+    return list;
+  }
+
+  // Ganze Liste setzen (Reise starten, Backup übernehmen) – Unterkunft und Kategorien bleiben unberührt
   async saveParticipants(participants) {
     check(await this.db.from('trip_settings').upsert(
       { trip_key: this.key, participants, updated_at: new Date().toISOString() },
@@ -197,9 +221,12 @@ export class SharedBackend {
 
   async updateExpense(id, e) {
     const { title, amount_cents, paid_by, shared_with, spent_on } = toExpenseRow(e, this.key);
-    check(await this.db.from('expenses')
+    const res = await this.db.from('expenses')
       .update({ title, amount_cents, paid_by, shared_with, spent_on, updated_at: new Date().toISOString() })
-      .eq('id', id).eq('trip_key', this.key));
+      .eq('id', id).eq('trip_key', this.key)
+      .select('id');
+    check(res);
+    if (!res.data?.length) throw new Error('die Rechnung wurde inzwischen gelöscht');
   }
 
   async deleteExpense(id) {
