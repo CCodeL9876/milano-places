@@ -900,7 +900,7 @@ $('#cash-person-form').addEventListener('submit', async (e) => {
   const input = $('#cash-person-input');
   const name = input.value.trim().slice(0, 30);
   if (!name) return;
-  if (cashBlocked()) return toast('Die Kasse ist in der Datenbank noch nicht eingerichtet (siehe Hinweis oben).');
+  if (cashBlocked()) return toast('Die Ausgaben sind in der Datenbank noch nicht eingerichtet (siehe Hinweis oben).');
   if (state.participants.some((p) => norm(p.name) === norm(name))) return toast(`„${name}“ ist schon eingetragen`);
   const person = { id: newId(), name };
   state.participants.push(person);
@@ -946,7 +946,7 @@ cashDialog.addEventListener('click', async (e) => {
     if (state.expenses.some((x) => x.paidBy === person.id || x.sharedWith.includes(person.id))) {
       return toast(`„${person.name}“ kommt in Rechnungen vor – zuerst diese Rechnungen ändern oder löschen.`);
     }
-    if (!confirm(`„${person.name}“ aus der Kasse entfernen?`)) return;
+    if (!confirm(`„${person.name}“ aus den Ausgaben entfernen?`)) return;
     const index = state.participants.findIndex((p) => p.id === person.id);
     state.participants = state.participants.filter((p) => p.id !== person.id);
     render();
@@ -1021,7 +1021,7 @@ $('#cash-form').addEventListener('submit', async (e) => {
   const error = $('#cash-error');
   const amountCents = parseAmount($('#cash-amount').value);
   const sharedWith = state.participants.map((p) => p.id).filter((id) => cashForm.shared.has(id));
-  error.textContent = cashBlocked() ? 'Die Kasse ist in der Datenbank noch nicht eingerichtet (siehe Hinweis oben).'
+  error.textContent = cashBlocked() ? 'Die Ausgaben sind in der Datenbank noch nicht eingerichtet (siehe Hinweis oben).'
     : !amountCents ? 'Bitte einen gültigen Betrag eingeben, z. B. 24,50.'
     : !cashForm.payer ? 'Bitte auswählen, wer bezahlt hat.'
     : !sharedWith.length ? 'Bitte bei „Für wen“ mindestens eine Person auswählen.'
@@ -1277,7 +1277,7 @@ async function handleFiles(files) {
         if (newExp.length) {
           state.expenses.push(...newExp);
           await persist((be) => be.addExpenses(newExp), 'Rechnungen konnten nicht übernommen werden');
-          log(`${file.name}: ${newExp.length} Rechnung(en) für die Kasse übernommen.`, 'ok');
+          log(`${file.name}: ${newExp.length} Rechnung(en) für die Ausgaben übernommen.`, 'ok');
         }
       }
       const { added, missing } = await importRaw(result.places, file.name);
@@ -1443,7 +1443,7 @@ async function startTrip() {
       if (state.participants.length) await shared.saveParticipants(state.participants);
       if (state.expenses.length) await shared.addExpenses(state.expenses.map((x) => ({ ...x, addedBy: x.addedBy || by })));
     } catch (err) {
-      toast(`Kasse wurde nicht hochgeladen: ${err.message}`);
+      toast(`Ausgaben wurden nicht hochgeladen: ${err.message}`);
     }
     switchTo(shared);
     toast('Gemeinsame Reise gestartet – jetzt den Link teilen');

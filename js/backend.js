@@ -151,7 +151,7 @@ export class SharedBackend {
     check(places);
     check(settings);
     // Fehlt die Tabelle „expenses“ noch (SQL nicht ausgeführt), läuft der Rest der App trotzdem weiter.
-    if (expenses.error) console.warn('Kasse nicht verfügbar (supabase/schema.sql ausgeführt?):', expenses.error.message);
+    if (expenses.error) console.warn('Ausgaben nicht verfügbar (supabase/schema.sql ausgeführt?):', expenses.error.message);
     return {
       places: places.data.map(fromRow),
       airbnb: settings.data?.airbnb ?? null,
