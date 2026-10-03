@@ -9,7 +9,7 @@ import {
 import { createMap } from './map.js';
 import { FIXED_AIRBNB, GOOGLE_MAPS_API_KEY, GOOGLE_MAPS_MAP_ID } from './config.js';
 import { icon, categoryIcon, categoryStyle } from './icons.js';
-import { formatEuro, parseAmount, computeBalances, settle, sanitizeParticipants, sanitizeExpense } from './cash.js';
+import { formatEuro, formatChf, toRappen, cachedRate, loadRate, parseAmount, computeBalances, settle, sanitizeParticipants, sanitizeExpense } from './cash.js';
 
 const CITY_CENTER = { lat: 45.4642, lng: 9.19 };
 const SYNC_INTERVAL_MS = 20000;
@@ -727,6 +727,10 @@ const cashForm = { editingId: null, payer: null, shared: new Set() };
 const todayIso = () => new Date().toLocaleDateString('sv-SE'); // JJJJ-MM-TT in Ortszeit
 const personName = (id) => state.participants.find((p) => p.id === id)?.name || 'Unbekannt';
 const cashBlocked = () => backend.kind === 'shared' && state.cashMissing;
+// Ausgleich in Franken: Tageskurs (siehe loadRate) und Klappzustand, der beim Neuzeichnen erhalten bleibt
+let fx = cachedRate();
+let cashSettleOpen = false;
+const longDate = (iso) => { const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || ''); return m ? `${Number(m[3])}.${Number(m[2])}.${m[1]}` : iso; };
 
 // „2026-10-01“ → „Do 1.10.“
 function shortDate(iso) {
@@ -810,12 +814,27 @@ function renderCashSummary() {
       </table>
     </div>
     <p class="hint cash-legend">Anteil = was die Person verbraucht hat. Plus = bekommt Geld zurück, Minus = schuldet Geld.</p>
-    <div class="cash-settle">
-      <h4>Ausgleich</h4>
-      ${transfers.length
-        ? `<ul>${transfers.map((t) => `<li><span><strong>${escapeHtml(personName(t.from))}</strong> ${icon('arrow-right', { size: 14, stroke: 2.4 })} <strong>${escapeHtml(personName(t.to))}</strong></span><span class="cash-settle-amount">${formatEuro(t.cents)}</span></li>`).join('')}</ul>`
-        : '<p class="hint">Alles ausgeglichen – niemand schuldet jemandem etwas.</p>'}
-    </div>`;
+    <details class="cash-settle cash-fold" id="cash-settle-fold"${cashSettleOpen ? ' open' : ''}>
+      <summary class="cash-fold-head">
+        <h4>Ausgleich <span class="cash-fold-count">· ${transfers.length ? `${transfers.length} ${transfers.length === 1 ? 'Zahlung' : 'Zahlungen'}` : 'alles ausgeglichen'}</span></h4>
+        ${icon('chevron-down', { size: 18, stroke: 2.2, cls: 'cash-fold-chevron' })}
+      </summary>
+      <div class="cash-fold-body">
+        ${transfers.length
+          ? `<ul>${transfers.map((t) => `<li>
+              <span class="cash-settle-who"><strong>${escapeHtml(personName(t.from))}</strong> ${icon('arrow-right', { size: 14, stroke: 2.4 })} <strong>${escapeHtml(personName(t.to))}</strong></span>
+              <span class="cash-settle-amount">${fx ? formatChf(toRappen(t.cents, fx.rate)) : formatEuro(t.cents)}</span>
+              ${fx ? `<span class="cash-eur">
+                <button type="button" class="cash-eur-btn" aria-expanded="false" aria-label="Betrag in Euro anzeigen" title="In Euro">€</button>
+                <span class="cash-eur-pop" hidden>${formatEuro(t.cents)}</span>
+              </span>` : ''}
+            </li>`).join('')}</ul>`
+          : '<p class="hint">Alles ausgeglichen – niemand schuldet jemandem etwas.</p>'}
+        <p class="hint cash-fx">${fx
+          ? `In Franken zum EZB-Referenzkurs vom ${longDate(fx.date)}: 1 € = ${fx.rate.toFixed(4)} CHF.${fx.fetched !== todayIso() ? ' Gerade kein Internet – letzter bekannter Kurs.' : ''} Mit € den Euro-Betrag anzeigen.`
+          : 'Wechselkurs gerade nicht abrufbar – Beträge in Euro.'}</p>
+      </div>
+    </details>`;
 }
 
 function renderCashList() {
@@ -851,6 +870,13 @@ function renderCashList() {
 
 function openCash() {
   resetCashForm();
+  cashSettleOpen = false;
+  // Tageskurs holen (höchstens einmal pro Tag), danach die Abrechnung in Franken neu zeichnen
+  loadRate().then((v) => {
+    if (!v || (fx && v.rate === fx.rate && v.date === fx.date && v.fetched === fx.fetched)) return;
+    fx = v;
+    if (cashDialog.open) renderCashSummary();
+  });
   $('#cash-people-fold').open = !state.participants.length;
   $('#cash-list-fold').open = false;
   renderCashDialog();
@@ -880,7 +906,20 @@ $('#cash-person-form').addEventListener('submit', async (e) => {
   }
 });
 
+// Klappzustand „Ausgleich“ merken („toggle“ steigt nicht auf, daher in der Capture-Phase)
+cashDialog.addEventListener('toggle', (e) => {
+  if (e.target.id === 'cash-settle-fold') cashSettleOpen = e.target.open;
+}, true);
+
 cashDialog.addEventListener('click', async (e) => {
+  // Euro-Sprechblase: € zeigt/versteckt sie, jeder andere Klick schliesst offene Blasen
+  const eurBtn = e.target.closest('.cash-eur-btn');
+  $$('.cash-eur-btn', cashDialog).forEach((b) => {
+    const open = b === eurBtn && b.getAttribute('aria-expanded') !== 'true';
+    b.setAttribute('aria-expanded', String(open));
+    b.nextElementSibling.hidden = !open;
+  });
+  if (eurBtn) return;
   const btn = e.target.closest('button');
   if (!btn) return;
 

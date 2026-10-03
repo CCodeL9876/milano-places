@@ -6,6 +6,45 @@
 
 const EURO = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 export const formatEuro = (cents) => EURO.format((cents || 0) / 100);
+const FRANKEN = new Intl.NumberFormat('de-CH', { style: 'currency', currency: 'CHF' });
+export const formatChf = (rappen) => FRANKEN.format((rappen || 0) / 100);
+
+// Tageskurs EUR → CHF: EZB-Referenzkurs über api.frankfurter.dev (frei, ohne Schlüssel). Wird höchstens
+// einmal pro Tag abgefragt und im Browser gemerkt; ohne Netz gilt der zuletzt bekannte Kurs.
+// Ergebnis: { rate, date: 'JJJJ-MM-TT' (Stand EZB), fetched: 'JJJJ-MM-TT' (Abrufdatum) } oder null.
+const FX_KEY = 'milano.fx';
+const FX_URL = 'https://api.frankfurter.dev/v1/latest?base=EUR&symbols=CHF';
+
+export function cachedRate() {
+  try {
+    const v = JSON.parse(localStorage.getItem(FX_KEY));
+    return v && v.rate > 0 ? v : null;
+  } catch {
+    return null;
+  }
+}
+
+export async function loadRate() {
+  const today = new Date().toLocaleDateString('sv-SE');
+  const cached = cachedRate();
+  if (cached?.fetched === today) return cached;
+  try {
+    const res = await fetch(FX_URL);
+    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+    const data = await res.json();
+    const rate = Number(data?.rates?.CHF);
+    if (!(rate > 0)) throw new Error('kein Kurs in der Antwort');
+    const value = { rate, date: String(data.date || today), fetched: today };
+    try { localStorage.setItem(FX_KEY, JSON.stringify(value)); } catch { /* privates Fenster */ }
+    return value;
+  } catch (err) {
+    console.warn('Wechselkurs nicht abrufbar:', err.message);
+    return cached;
+  }
+}
+
+// Euro-Cent → Rappen zum gegebenen Kurs
+export const toRappen = (cents, rate) => Math.round(cents * rate);
 
 // „12,50“, „12.50“, „1.234,50“, „1'234.50“, „12“ → Cent; ungültig oder ≤ 0 → null
 export function parseAmount(input) {
