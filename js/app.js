@@ -889,7 +889,7 @@ function openCash() {
   });
   $('#cash-people-fold').open = !state.participants.length;
   $('#cash-form-fold').open = true;
-  $('#cash-summary-fold').open = true;
+  $('#cash-summary-fold').open = false;
   $('#cash-list-fold').open = false;
   renderCashDialog();
   cashDialog.showModal();

@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte in Mailand – gefiltert nach Art und Entfernung zur Unterkunft.">
   <meta name="theme-color" content="#FFD23F">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-03.11" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-03.11">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-03.12" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-03.12">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Milano">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-03.11">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-03.11">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-03.11">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-03.12">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-03.12">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-03.12">
 </head>
 <body>
   <header class="topbar">
@@ -288,7 +288,7 @@
       <p id="cash-missing" class="cash-warn" hidden>Die Ausgaben sind in der Datenbank noch nicht eingerichtet. Bitte das SQL aus
         <code>supabase/schema.sql</code> (Abschnitt „Reisekasse“) im Supabase SQL Editor ausführen.</p>
 
-      <!-- Klappbar: Teilnehmende und Rechnungen beim Öffnen zugeklappt, Erfassen und Abrechnung aufgeklappt (siehe openCash in app.js) -->
+      <!-- Klappbar: beim Öffnen nur „Rechnung erfassen“ aufgeklappt, „Teilnehmende“ solange niemand eingetragen ist (siehe openCash in app.js) -->
       <details class="cash-section cash-fold" id="cash-people-fold">
         <summary class="cash-fold-head">
           <h3 id="cash-people-title">Teilnehmende <span class="cash-fold-count" id="cash-people-count"></span></h3>
@@ -343,7 +343,7 @@
         </div>
       </details>
 
-      <details class="cash-section cash-fold" id="cash-summary-fold" open>
+      <details class="cash-section cash-fold" id="cash-summary-fold">
         <summary class="cash-fold-head">
           <h3 id="cash-summary-title">Abrechnung</h3>
           <svg class="icon cash-fold-chevron" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>
@@ -409,24 +409,24 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-03.11"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-03.12"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-03.11",
-      "./js/backend.js": "./js/backend.js?v=2026-10-03.11",
-      "./js/categories.js": "./js/categories.js?v=2026-10-03.11",
-      "./js/config.js": "./js/config.js?v=2026-10-03.11",
-      "./js/geo.js": "./js/geo.js?v=2026-10-03.11",
-      "./js/icons.js": "./js/icons.js?v=2026-10-03.11",
-      "./js/importers.js": "./js/importers.js?v=2026-10-03.11",
-      "./js/map.js": "./js/map.js?v=2026-10-03.11",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-03.11",
-      "./js/store.js": "./js/store.js?v=2026-10-03.11"
+      "./js/app.js": "./js/app.js?v=2026-10-03.12",
+      "./js/backend.js": "./js/backend.js?v=2026-10-03.12",
+      "./js/categories.js": "./js/categories.js?v=2026-10-03.12",
+      "./js/config.js": "./js/config.js?v=2026-10-03.12",
+      "./js/geo.js": "./js/geo.js?v=2026-10-03.12",
+      "./js/icons.js": "./js/icons.js?v=2026-10-03.12",
+      "./js/importers.js": "./js/importers.js?v=2026-10-03.12",
+      "./js/map.js": "./js/map.js?v=2026-10-03.12",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-03.12",
+      "./js/store.js": "./js/store.js?v=2026-10-03.12"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-03.11"></script>
+  <script type="module" src="js/app.js?v=2026-10-03.12"></script>
 </body>
 </html>
