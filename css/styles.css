@@ -176,7 +176,17 @@ input[type="text"], input[type="url"], input[type="search"], input[type="date"],
   font-family: inherit;
   transition: border-color 0.15s, box-shadow 0.15s;
 }
-input[type="date"], input[type="time"] { color-scheme: light; }
+input[type="date"], input[type="time"] {
+  color-scheme: light;
+  /* iPhone/Safari zeichnet Datum und Uhrzeit sonst im eigenen Stil: andere Höhe, Text zentriert,
+     und ein leeres Feld fällt zusammen. Ohne Eigenstil verhalten sie sich wie die Textfelder. */
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  text-align: left;
+}
+input[type="date"]::-webkit-date-and-time-value,
+input[type="time"]::-webkit-date-and-time-value { text-align: left; margin: 0; min-height: 1.5em; }
 input[type="date"]::-webkit-calendar-picker-indicator,
 input[type="time"]::-webkit-calendar-picker-indicator {
   cursor: pointer;
@@ -939,6 +949,9 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 
 .cash-form { display: flex; flex-direction: column; gap: 12px; }
 .cash-row { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.cash-row > .field { min-width: 0; }
+/* Betrag, Datum und „Wofür“ exakt gleich hoch (feste Höhe statt Mindesthöhe – iOS hält sich sonst nicht daran) */
+.cash-form input[type="text"], .cash-form input[type="date"] { height: 46px; min-height: 0; padding-top: 0; padding-bottom: 0; line-height: normal; }
 .cash-label-row { display: flex; justify-content: space-between; align-items: baseline; gap: 10px; }
 .cash-label-row .btn-link { padding: 0; font-size: 12.5px; }
 .cash-pick { display: flex; flex-wrap: wrap; gap: 8px; }
