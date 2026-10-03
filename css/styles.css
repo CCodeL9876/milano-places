@@ -736,6 +736,15 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 .locate-btn[aria-pressed="true"] { background: var(--blue); color: #FFFFFF; }
 .locate-btn.is-waiting .icon { animation: locate-spin 1.2s linear infinite; }
 @keyframes locate-spin { to { transform: rotate(360deg); } }
+/* Punkt mit Blickrichtungs-Kegel: der Kegel dreht sich um die Mitte (--heading aus dem Kompass) */
+.me-wrap { position: relative; width: 120px; height: 120px; pointer-events: none; }
+.me-heading {
+  position: absolute; inset: 0; width: 120px; height: 120px; display: none;
+  transform: rotate(var(--heading, 0deg)); transform-origin: 50% 50%;
+  transition: transform 0.12s linear;
+}
+.me-wrap.has-heading .me-heading { display: block; }
+.me-wrap .me-dot { position: absolute; left: 49px; top: 49px; }
 .me-dot {
   width: 22px; height: 22px; border-radius: 50%;
   background: var(--blue); border: 3px solid #FFFFFF;

@@ -1531,6 +1531,10 @@ function locateProblem(kind, detail = '') {
     $('#locate-dialog').showModal();
     return;
   }
+  if (kind === 'heading-denied') {
+    toast('Standort läuft – für die Blickrichtung „Bewegung und Ausrichtung“ erlauben: Seite neu laden und beim Fadenkreuz „Erlauben“ wählen.');
+    return;
+  }
   toast(kind === 'unsupported'
     ? 'Dieser Browser kann den Standort nicht bestimmen.'
     : 'Standort konnte gerade nicht bestimmt werden – am besten draussen oder mit WLAN eingeschaltet noch einmal versuchen.');

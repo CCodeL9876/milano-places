@@ -96,6 +96,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
   // Verschiebt man die Karte selbst, hört das Mitlaufen auf; ein Tipp springt dann zurück und
   // läuft wieder mit. Tipp, wenn der Standort schon in der Mitte ist: ausschalten.
   // Die Position bleibt im Browser – sie wird weder gespeichert noch an die Datenbank geschickt.
+  // Dazu ein Blickrichtungs-Kegel aus dem Kompass (iPhone: „Bewegung und Ausrichtung“ erlauben).
   let locating = false;
   let firstFix = false;
   let following = false;
@@ -111,7 +112,65 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     locateBtn.title = state === 'off' ? 'Mein Standort' : 'Standort: nochmals tippen zum Zentrieren bzw. Ausschalten';
   };
 
+  // --- Blickrichtung (Kompass) ---
+  // iOS liefert die Richtung als webkitCompassHeading (Grad ab Norden, im Uhrzeigersinn) und verlangt
+  // vorher eine Erlaubnis, die nur direkt nach einem Tipp abgefragt werden darf. Android liefert sie
+  // über „deviceorientationabsolute“ (alpha, gegen den Uhrzeigersinn). Ohne Sensor: kein Kegel.
+  let headingOn = false;
+  let headingAngle = null; // fortlaufend (ohne Sprung bei 359° → 0°), damit die Drehung weich bleibt
+  let headingFrame = 0;
+
+  function applyHeading() {
+    headingFrame = 0;
+    const wrap = meMarker?.getElement()?.querySelector('.me-wrap');
+    if (!wrap || headingAngle == null) return;
+    wrap.classList.add('has-heading');
+    wrap.style.setProperty('--heading', `${headingAngle}deg`);
+  }
+
+  function onOrientation(e) {
+    let h = null;
+    if (typeof e.webkitCompassHeading === 'number' && !Number.isNaN(e.webkitCompassHeading)) h = e.webkitCompassHeading;
+    else if (e.absolute && typeof e.alpha === 'number') h = 360 - e.alpha;
+    if (h == null) return;
+    // Querformat: Bildschirmdrehung dazurechnen, damit der Kegel zur Oberkante des Bildschirms zeigt
+    const screenAngle = screen.orientation?.angle ?? window.orientation ?? 0;
+    h = (h + screenAngle + 360) % 360;
+    headingAngle = headingAngle == null ? h : headingAngle + ((h - headingAngle + 540) % 360) - 180;
+    if (!headingFrame) headingFrame = requestAnimationFrame(applyHeading);
+  }
+
+  // Muss synchron aus dem Tipp heraus starten (iOS fragt sonst nicht nach)
+  async function startHeading() {
+    if (headingOn || typeof window.DeviceOrientationEvent === 'undefined') return;
+    headingOn = true;
+    try {
+      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+        const answer = await DeviceOrientationEvent.requestPermission();
+        if (answer !== 'granted') {
+          headingOn = false;
+          onLocateMessage?.('heading-denied');
+          return;
+        }
+      }
+    } catch {
+      headingOn = false;
+      return;
+    }
+    if (!locating) { headingOn = false; return; }
+    window.addEventListener('deviceorientationabsolute', onOrientation);
+    window.addEventListener('deviceorientation', onOrientation);
+  }
+
+  function stopHeading() {
+    headingOn = false;
+    headingAngle = null;
+    window.removeEventListener('deviceorientationabsolute', onOrientation);
+    window.removeEventListener('deviceorientation', onOrientation);
+  }
+
   function stopLocate() {
+    stopHeading();
     locating = false;
     following = false;
     meLatLng = null;
@@ -135,6 +194,7 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
       if (!navigator.geolocation) return onLocateMessage?.('unsupported');
       locating = true;
       firstFix = true;
+      startHeading();
       setLocateState('waiting');
       map.locate({ watch: true, enableHighAccuracy: true, setView: false, maximumAge: 10000, timeout: 20000 });
       return;
@@ -152,9 +212,15 @@ export function createMap(el, { onMapClick, onMarkerClick, getInsets, onLocateMe
     if (!meMarker) {
       meCircle = L.circle(e.latlng, { radius: e.accuracy, className: 'me-accuracy', interactive: false }).addTo(map);
       meMarker = L.marker(e.latlng, {
-        icon: L.divIcon({ className: '', html: '<div class="me-dot"></div>', iconSize: [22, 22], iconAnchor: [11, 11] }),
+        // Kegel (Blickrichtung) hinter dem Punkt; erscheint erst, wenn der Kompass Werte liefert
+        icon: L.divIcon({
+          className: '',
+          html: '<div class="me-wrap"><svg class="me-heading" viewBox="0 0 120 120" aria-hidden="true"><defs><linearGradient id="me-beam" x1="0" y1="1" x2="0" y2="0"><stop offset=".45" stop-color="#2E4AD8" stop-opacity=".75"/><stop offset="1" stop-color="#2E4AD8" stop-opacity="0"/></linearGradient></defs><path d="M60 60 33 6a60 60 0 0 1 54 0Z" fill="url(#me-beam)"/></svg><div class="me-dot"></div></div>',
+          iconSize: [120, 120], iconAnchor: [60, 60],
+        }),
         interactive: false, keyboard: false, zIndexOffset: 2000,
       }).addTo(map);
+      applyHeading();
     } else {
       meMarker.setLatLng(e.latlng);
       meCircle.setLatLng(e.latlng).setRadius(e.accuracy);
