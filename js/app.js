@@ -208,12 +208,14 @@ async function addGooglePlace(g, categoryId) {
 
 // --- Handy: Liste als Blatt über der Karte ------------------------------------------------
 // Unter 900px liegt die Seitenleiste als Blatt unten über der randlosen Karte (wie auf dem Desktop
-// schwebend, nur von unten). Drei Höhen: „peek“ (nur Suche), „half“ (Standard), „full“ (ganze Liste).
+// schwebend, nur von unten). Höhen: „hidden“ (ganz eingeklappt, nur Knopf „Orte & Filter“), „peek“ (nur Suche),
+// „half“ (Standard), „full“ (ganze Liste).
 // Die Höhen selbst stehen in styles.css (--sheet-h); hier wird nur umgeschaltet.
 
 const isMobile = () => window.matchMedia('(max-width: 899px)').matches;
-const SHEET_STATES = ['peek', 'half', 'full'];
+const SHEET_STATES = ['hidden', 'peek', 'half', 'full'];
 const SHEET_PEEK_PX = 150; // muss zu --sheet-h bei [data-sheet="peek"] in styles.css passen
+const SHEET_HIDDEN_PX = 66; // Platz für den Knopf „Orte & Filter“, siehe [data-sheet="hidden"] in styles.css
 
 function sheetState() {
   return $('.layout').dataset.sheet || 'half';
@@ -235,7 +237,7 @@ function mapInsets() {
   let top = row.height ? Math.max(0, row.bottom - m.top) : 0;
   if (isMobile()) {
     const state = sheetState();
-    const bottom = state === 'peek' ? SHEET_PEEK_PX : state === 'half' ? m.height * 0.5 : m.height;
+    const bottom = state === 'hidden' ? SHEET_HIDDEN_PX : state === 'peek' ? SHEET_PEEK_PX : state === 'half' ? m.height * 0.5 : m.height;
     if (m.height - bottom - top < 120) top = 0; // offene Box: nicht auf einen Streifen quetschen
     return { top, bottom: Math.min(bottom, m.height - 40) };
   }
@@ -259,10 +261,14 @@ function mapInsets() {
     const dy = e.changedTouches[0].clientY - startY;
     startY = null;
     if (Math.abs(dy) < 30) return; // kurzer Tipp → normales click
-    e.preventDefault(); // kein zusätzliches click nach dem Wischen
+    if (e.cancelable) e.preventDefault(); // kein zusätzliches click nach dem Wischen (nur wenn der Browser es zulässt)
+    // Langer Wisch nach unten klappt direkt ganz ein; sonst eine Stufe weiter
+    const step = dy > 220 ? -SHEET_STATES.length : dy < 0 ? 1 : -1;
     const i = SHEET_STATES.indexOf(sheetState());
-    setSheet(SHEET_STATES[Math.max(0, Math.min(SHEET_STATES.length - 1, i + (dy < 0 ? 1 : -1)))]);
+    setSheet(SHEET_STATES[Math.max(0, Math.min(SHEET_STATES.length - 1, i + step))]);
   });
+  // Eingeklappt: ein Tipp auf „Orte & Filter“ holt das Blatt auf halbe Höhe zurück
+  $('#sheet-open').addEventListener('click', () => setSheet('half'));
   // Suchen braucht Platz für Tastatur und Treffer
   $('#search').addEventListener('focus', () => { if (isMobile()) setSheet('full'); });
 })();
@@ -327,6 +333,7 @@ function render({ fit = false } = {}) {
   renderList(visible, all.length);
   renderShareState();
   renderCash();
+  $('#sheet-open-count').textContent = visible.length;
 
   mapView.setPlaces(visible, catOf, activeId);
   mapView.setAirbnb(state.airbnb);

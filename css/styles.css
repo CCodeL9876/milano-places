@@ -265,7 +265,7 @@ select {
 /* Reise/Unterkunft: auf dem Handy zugeklappt unter der Liste (eigene, engere Gruppe mit
    Trennlinie). Ab Desktop-Breite (siehe Media Query weiter unten) eine eigene schwebende Zeile
    rechts neben der Suchleisten-Box, nebeneinander statt gestapelt. */
-.sheet-handle { display: none; } /* nur auf dem Handy, siehe Media Query unten */
+.sheet-handle, .sheet-open { display: none; } /* nur auf dem Handy, siehe Media Query unten */
 .panel-row {
   display: flex; flex-direction: column; gap: 10px;
   padding-top: 18px; border-top: 2px dashed var(--edge);
@@ -1085,6 +1085,24 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
   }
   .layout[data-sheet="peek"] { --sheet-h: calc(150px + env(safe-area-inset-bottom, 0px)); } /* 150px: SHEET_PEEK_PX in app.js */
   .layout[data-sheet="full"] { --sheet-h: calc(100% - 10px); }
+  /* Ganz eingeklappt: Blatt nach unten weg, nur der Knopf „Orte & Filter“ bleibt (66px: SHEET_HIDDEN_PX in app.js) */
+  .layout[data-sheet="hidden"] { --sheet-h: calc(66px + env(safe-area-inset-bottom, 0px)); }
+  .layout[data-sheet="hidden"] .sidebar { transform: translateY(calc(100% + 12px)); box-shadow: none; }
+  .sheet-open {
+    position: absolute; z-index: 960; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px));
+    display: flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 16px 0 14px;
+    background: var(--yellow); color: var(--ink); cursor: pointer;
+    border: 2px solid var(--edge); border-radius: 999px; box-shadow: var(--pop);
+    font: 800 15px var(--font-display); white-space: nowrap;
+    transform: translate(-50%, calc(100% + 30px)); opacity: 0; pointer-events: none;
+    transition: transform 0.25s ease, opacity 0.2s;
+  }
+  .layout[data-sheet="hidden"] .sheet-open { transform: translate(-50%, 0); opacity: 1; pointer-events: auto; }
+  .sheet-open:active { transform: translate(calc(-50% + 2px), 2px); box-shadow: 1px 1px 0 var(--edge); }
+  .sheet-open-count {
+    min-width: 24px; padding: 1px 7px; border-radius: 999px; text-align: center;
+    background: var(--ink); color: var(--yellow); font-size: 12px; font-variant-numeric: tabular-nums;
+  }
 
   .map-wrap { position: absolute; inset: 0; padding: 0; z-index: 1; }
   .map-wrap::after { content: none; }
@@ -1109,7 +1127,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
     -webkit-backdrop-filter: blur(10px);
     border-top: 2px solid var(--edge);
     box-shadow: 0 -4px 0 var(--pink);
-    transition: height 0.25s ease;
+    transition: height 0.25s ease, transform 0.25s ease;
   }
   /* Griff oben am Blatt: bleibt beim Scrollen stehen */
   .sheet-handle {
