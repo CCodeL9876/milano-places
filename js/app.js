@@ -888,6 +888,8 @@ function openCash() {
     if (cashDialog.open) renderCashSummary();
   });
   $('#cash-people-fold').open = !state.participants.length;
+  $('#cash-form-fold').open = true;
+  $('#cash-summary-fold').open = true;
   $('#cash-list-fold').open = false;
   renderCashDialog();
   cashDialog.showModal();
@@ -998,6 +1000,7 @@ cashDialog.addEventListener('click', async (e) => {
     $('#cash-submit').textContent = 'Änderungen speichern';
     $('#cash-cancel').hidden = false;
     renderCashDialog();
+    $('#cash-form-fold').open = true; // falls zugeklappt: Formular zum Bearbeiten zeigen
     $('#cash-form-title').scrollIntoView({ behavior: 'smooth', block: 'start' });
     return;
   }
