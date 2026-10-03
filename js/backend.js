@@ -8,8 +8,26 @@
 import { SUPABASE_URL, SUPABASE_ANON_KEY } from './config.js';
 import { loadLocalData, saveLocalData, readPref, writePref } from './store.js';
 
-const SUPABASE_ESM = 'https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/+esm';
+// Supabase-Bibliothek als feste Version im Projekt (statt „neueste 2.x“ vom CDN): So kann keine fremd
+// veränderte Datei den Reise-Schlüssel mitlesen. Aktualisieren = neue Datei aus dist/umd/ ablegen, Pfad anpassen.
+const SUPABASE_JS = new URL('../vendor/supabase/supabase-2.117.2.js', import.meta.url).href;
 const TRIP_HASH = /(?:^#|&)reise=([a-f0-9]{32,128})/i;
+
+// Klassisches Skript (UMD) – stellt window.supabase bereit; wird erst geladen, wenn eine Reise geteilt ist
+let supabaseLib = null;
+function loadSupabase() {
+  supabaseLib ??= new Promise((resolve, reject) => {
+    const script = document.createElement('script');
+    script.src = SUPABASE_JS;
+    script.onload = () => (window.supabase?.createClient ? resolve(window.supabase) : reject(new Error('Supabase-Bibliothek unvollständig')));
+    script.onerror = () => {
+      supabaseLib = null; // beim nächsten Versuch erneut laden
+      reject(new Error('Supabase-Bibliothek nicht ladbar'));
+    };
+    document.head.append(script);
+  });
+  return supabaseLib;
+}
 
 export const sharingConfigured = () => Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 
@@ -127,7 +145,7 @@ export class SharedBackend {
 
   static async connect(key) {
     if (!sharingConfigured()) throw new Error('Gemeinsame Reisen sind noch nicht eingerichtet (js/config.js).');
-    const { createClient } = await import(SUPABASE_ESM);
+    const { createClient } = await loadSupabase();
     const db = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
       auth: { persistSession: false, autoRefreshToken: false },
       global: { headers: { 'x-trip-key': key } },
