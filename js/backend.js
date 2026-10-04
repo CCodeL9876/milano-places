@@ -163,6 +163,11 @@ const toExpenseRow = (e, key) => ({
   spent_on: e.date || null,
   added_by: e.addedBy || '',
   created_at: new Date(e.addedAt || Date.now()).toISOString(),
+  // Erweiterungen nur mitschicken, wenn gesetzt: normale Rechnungen funktionieren so auch ohne die neuen
+  // Spalten (SQL noch nicht ausgeführt). null = Erweiterung beim Bearbeiten entfernt.
+  ...(e.kind ? { kind: e.kind } : {}),
+  ...(e.orig !== undefined ? { orig: e.orig } : {}),
+  ...(e.split !== undefined ? { split: e.split } : {}),
 });
 
 const fromExpenseRow = (r) => ({
@@ -174,6 +179,9 @@ const fromExpenseRow = (r) => ({
   date: r.spent_on || '',
   addedBy: r.added_by || '',
   addedAt: Date.parse(r.created_at) || 0,
+  kind: r.kind || undefined,
+  orig: r.orig || undefined,
+  split: r.split || undefined,
 });
 
 function check({ error }) {
@@ -210,6 +218,11 @@ export class SharedBackend {
     check(settings);
     // Fehlt die Tabelle „expenses“ noch (SQL nicht ausgeführt), läuft der Rest der App trotzdem weiter.
     if (expenses.error) console.warn('Ausgaben nicht verfügbar (supabase/schema.sql ausgeführt?):', expenses.error.message);
+    // Einmal pro Verbindung prüfen, ob die Spalten für Franken, Aufteilung und Ausgleich schon existieren
+    if (this.cashExtrasMissing === undefined && !expenses.error) {
+      const probe = await this.db.from('expenses').select('kind,orig,split').limit(1);
+      this.cashExtrasMissing = Boolean(probe.error);
+    }
     return {
       places: places.data.map(fromRow),
       airbnb: settings.data?.airbnb ?? null,
@@ -217,6 +230,7 @@ export class SharedBackend {
       participants: settings.data?.participants ?? [],
       expenses: expenses.error ? [] : expenses.data.map(fromExpenseRow),
       cashMissing: Boolean(expenses.error) || !(settings.data == null || 'participants' in settings.data),
+      cashExtrasMissing: Boolean(this.cashExtrasMissing),
     };
   }
 
@@ -278,9 +292,10 @@ export class SharedBackend {
   }
 
   async updateExpense(id, e) {
-    const { title, amount_cents, paid_by, shared_with, spent_on } = toExpenseRow(e, this.key);
+    const { title, amount_cents, paid_by, shared_with, spent_on, orig, split } = toExpenseRow(e, this.key);
+    const extra = { ...(orig !== undefined ? { orig } : {}), ...(split !== undefined ? { split } : {}) };
     const res = await this.db.from('expenses')
-      .update({ title, amount_cents, paid_by, shared_with, spent_on, updated_at: new Date().toISOString() })
+      .update({ title, amount_cents, paid_by, shared_with, spent_on, ...extra, updated_at: new Date().toISOString() })
       .eq('id', id).eq('trip_key', this.key)
       .select('id');
     check(res);
