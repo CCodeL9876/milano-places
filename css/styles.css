@@ -384,6 +384,7 @@ select {
 .airbnb-form-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 16px; }
 .airbnb-error { margin: 0; font-size: 13px; font-weight: 600; color: var(--red); }
 .airbnb-error:empty { display: none; }
+.field-opt { font-weight: 500; color: var(--muted); }
 
 .panel-summary {
   display: flex; gap: 14px; align-items: flex-start;
