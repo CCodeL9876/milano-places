@@ -7,16 +7,16 @@
   <meta name="description" content="Gespeicherte Google-Maps-Orte in Mailand – gefiltert nach Art und Entfernung zur Unterkunft.">
   <meta name="theme-color" content="#FFD23F">
   <meta name="color-scheme" content="light">
-  <link rel="icon" href="assets/favicon.svg?v=2026-10-04.5" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-04.5">
+  <link rel="icon" href="assets/favicon.svg?v=2026-10-04.6" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="assets/icon-180.png?v=2026-10-04.6">
   <link rel="manifest" href="manifest.webmanifest">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <meta name="apple-mobile-web-app-title" content="Milano">
   <!-- Versionsnummer (v=…): bei jeder Änderung an CSS/JS überall in dieser Datei per Suchen & Ersetzen erhöhen, damit Browser keine alten Dateien mischen -->
-  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-04.5">
-  <link rel="stylesheet" href="css/fonts.css?v=2026-10-04.5">
-  <link rel="stylesheet" href="css/styles.css?v=2026-10-04.5">
+  <link rel="stylesheet" href="vendor/leaflet/leaflet.css?v=2026-10-04.6">
+  <link rel="stylesheet" href="css/fonts.css?v=2026-10-04.6">
+  <link rel="stylesheet" href="css/styles.css?v=2026-10-04.6">
 </head>
 <body>
   <header class="topbar">
@@ -244,11 +244,20 @@
           <ul class="intro-list">
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--pink)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/><circle cx="12" cy="10" r="3"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Karte &amp; Liste</strong><span>Alle Orte auf einen Blick, die nächsten zuerst. Nach Art filtern, suchen oder die Mailänder Viertel einblenden.</span></span>
+              <span class="intro-text"><strong class="intro-name">Karte &amp; Liste</strong><span>Alle Orte auf Karte und Liste – nach Art filtern, suchen oder sortieren. Auf dem Handy die Liste nach unten wischen, dann ist die ganze Karte frei.</span></span>
             </li>
+          </ul>
+        </section>
+        <section class="intro-group">
+          <h3 class="intro-group-title">Unterwegs</h3>
+          <ul class="intro-list">
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--sky)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 11 22 2l-9 19-2-8Z"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Unterwegs</strong><span>Der <strong>Standort-Knopf</strong> zeigt, wo du bist und wohin du schaust. <strong>„Route“</strong> führt dich mit Google Maps zum Ort oder zur Unterkunft.</span></span>
+              <span class="intro-text"><strong class="intro-name">Standort &amp; Route</strong><span>Der <strong>Standort-Knopf</strong> zeigt, wo du bist und wohin du schaust. <strong>„Route“</strong> bei einem Ort führt dich mit Google Maps hin.</span></span>
+            </li>
+            <li class="intro-item">
+              <span class="intro-badge" style="--b:var(--lilac)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 10.5 12 3l9 7.5V21a1 1 0 0 1-1 1h-5v-7H9v7H4a1 1 0 0 1-1-1Z"/></svg></span>
+              <span class="intro-text"><strong class="intro-name">Unterkunft</strong><span>Unter <strong>„Unser Airbnb“</strong> stehen Name, Adresse und Inserat – <strong>„Route zur Unterkunft“</strong> bringt dich zurück.</span></span>
             </li>
           </ul>
         </section>
@@ -261,7 +270,7 @@
             </li>
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--lilac)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect width="18" height="18" x="3" y="4" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/><path d="m9 16 2 2 4-4"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Reservierungen</strong><span>Beim Ort <strong>„Als reserviert markieren“</strong>, Datum und Uhrzeit eintragen. Der Filter <strong>„Reserviert“</strong> zeigt alle Termine.</span></span>
+              <span class="intro-text"><strong class="intro-name">Reservierungen</strong><span>Beim Restaurant <strong>„Als reserviert markieren“</strong>, Datum und Uhrzeit eintragen. Der Filter <strong>„Reserviert“</strong> zeigt alle Termine.</span></span>
             </li>
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--mint)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg></span>
@@ -274,7 +283,7 @@
           <ul class="intro-list">
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--orange)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 7V4a1 1 0 0 0-1-1H5a2 2 0 0 0 0 4h15a1 1 0 0 1 1 1v4h-3a2 2 0 0 0 0 4h3a1 1 0 0 0 1-1v-2a1 1 0 0 0-1-1"/><path d="M3 5v14a2 2 0 0 0 2 2h15a1 1 0 0 0 1-1v-4"/></svg></span>
-              <span class="intro-text"><strong class="intro-name">Ausgaben teilen</strong><span>Unter <strong>„Ausgaben“</strong> erfassen, wer was für wen bezahlt hat. Die Abrechnung zeigt, wer wem wie viel schuldet.</span></span>
+              <span class="intro-text"><strong class="intro-name">Ausgaben teilen</strong><span>Unter <strong>„Ausgaben“</strong> erfassen, wer was für wen bezahlt hat. Die Abrechnung zeigt, wer wem wie viel schuldet – in Franken, mit € auf Antippen.</span></span>
             </li>
             <li class="intro-item">
               <span class="intro-badge" style="--b:var(--pink)" aria-hidden="true"><svg class="icon" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
@@ -452,25 +461,25 @@
 
   <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
 
-  <script src="vendor/leaflet/leaflet.js?v=2026-10-04.5"></script>
+  <script src="vendor/leaflet/leaflet.js?v=2026-10-04.6"></script>
   <!-- Import-Map: hängt die Versionsnummer an alle Module, auch an die, die app.js selbst importiert -->
   <script type="importmap">
   {
     "imports": {
-      "./js/app.js": "./js/app.js?v=2026-10-04.5",
-      "./js/backend.js": "./js/backend.js?v=2026-10-04.5",
-      "./js/cash.js": "./js/cash.js?v=2026-10-04.5",
-      "./js/categories.js": "./js/categories.js?v=2026-10-04.5",
-      "./js/config.js": "./js/config.js?v=2026-10-04.5",
-      "./js/geo.js": "./js/geo.js?v=2026-10-04.5",
-      "./js/icons.js": "./js/icons.js?v=2026-10-04.5",
-      "./js/importers.js": "./js/importers.js?v=2026-10-04.5",
-      "./js/map.js": "./js/map.js?v=2026-10-04.5",
-      "./js/map-google.js": "./js/map-google.js?v=2026-10-04.5",
-      "./js/store.js": "./js/store.js?v=2026-10-04.5"
+      "./js/app.js": "./js/app.js?v=2026-10-04.6",
+      "./js/backend.js": "./js/backend.js?v=2026-10-04.6",
+      "./js/cash.js": "./js/cash.js?v=2026-10-04.6",
+      "./js/categories.js": "./js/categories.js?v=2026-10-04.6",
+      "./js/config.js": "./js/config.js?v=2026-10-04.6",
+      "./js/geo.js": "./js/geo.js?v=2026-10-04.6",
+      "./js/icons.js": "./js/icons.js?v=2026-10-04.6",
+      "./js/importers.js": "./js/importers.js?v=2026-10-04.6",
+      "./js/map.js": "./js/map.js?v=2026-10-04.6",
+      "./js/map-google.js": "./js/map-google.js?v=2026-10-04.6",
+      "./js/store.js": "./js/store.js?v=2026-10-04.6"
     }
   }
   </script>
-  <script type="module" src="js/app.js?v=2026-10-04.5"></script>
+  <script type="module" src="js/app.js?v=2026-10-04.6"></script>
 </body>
 </html>
