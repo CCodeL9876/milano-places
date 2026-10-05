@@ -1291,3 +1291,7 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Bestätigung nach dem Erfassen einer Rechnung (im Ausgaben-Fenster) */
+.cash-success { margin: 0; padding: 8px 12px; border-radius: var(--radius); font-size: 13.5px; font-weight: 700; background: var(--mint); color: var(--ink); }
+.cash-success:empty { display: none; }
