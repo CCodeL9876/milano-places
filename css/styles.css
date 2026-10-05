@@ -1295,3 +1295,8 @@ details.panel[open] .panel-chevron { transform: rotate(180deg); }
 /* Bestätigung nach dem Erfassen einer Rechnung (im Ausgaben-Fenster) */
 .cash-success { margin: 0; padding: 8px 12px; border-radius: var(--radius); font-size: 13.5px; font-weight: 700; background: var(--mint); color: var(--ink); }
 .cash-success:empty { display: none; }
+
+/* Fenster: Wischen bleibt im Fenster, die Seite dahinter steht still; Tippen ohne Verzögerung */
+.dialog { overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }
+html.dialog-open, html.dialog-open body { overflow: hidden; overscroll-behavior: none; }
+button, a, input, select, textarea, summary, label { touch-action: manipulation; }
